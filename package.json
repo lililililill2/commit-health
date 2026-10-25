@@ -1,0 +1,29 @@
+{
+  "name": "commit-health",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "pnpm": ">=10.30.3 <11"
+  },
+  "scripts": {
+    "dev:web": "pnpm --filter @commit-health/web dev",
+    "dev:server": "pnpm --filter @commit-health/server dev",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter @commit-health/server test",
+    "test:e2e": "pnpm --filter @commit-health/server test:e2e",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prisma:generate": "pnpm --filter @commit-health/server prisma:generate",
+    "prisma:validate": "pnpm --filter @commit-health/server prisma:validate",
+    "prisma:migrate": "pnpm --filter @commit-health/server prisma:migrate",
+    "prisma:deploy": "pnpm --filter @commit-health/server prisma:deploy",
+    "prisma:studio": "pnpm --filter @commit-health/server prisma:studio"
+  },
+  "devDependencies": {
+    "prettier": "3.9.10"
+  }
+}

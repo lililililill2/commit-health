@@ -1,0 +1,11 @@
+{
+  "testEnvironment": "node",
+  "setupFiles": ["reflect-metadata"],
+  "extensionsToTreatAsEsm": [".ts"],
+  "moduleNameMapper": { "^(\\.{1,2}/.*)\\.js$": "$1" },
+  "rootDir": "..",
+  "testRegex": "test/.*\\.e2e-spec\\.ts$",
+  "transform": {
+    "^.+\\.ts$": ["ts-jest", { "useESM": true }]
+  }
+}
