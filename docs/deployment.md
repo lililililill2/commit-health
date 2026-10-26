@@ -5,17 +5,24 @@ Figma 파일 전체 랜딩 페이지를 구현한 것은 아니며, 화면은 �
 
 ## 프로젝트 설정
 
-| 항목             | 값                                                                  |
-| ---------------- | ------------------------------------------------------------------- |
-| Framework Preset | Next.js                                                             |
-| Root Directory   | `apps/web`                                                          |
-| Node.js Version  | `24.x`                                                              |
-| Install Command  | `pnpm install --frozen-lockfile`                                    |
-| Build Command    | `cd ../.. && pnpm exec turbo run build --filter=@commit-health/web` |
-| Output Directory | Next.js 기본값 (`.next`)                                            |
+| 항목             | 값                                                                       |
+| ---------------- | ------------------------------------------------------------------------ |
+| Framework Preset | Next.js                                                                  |
+| Root Directory   | `apps/web`                                                               |
+| Node.js Version  | `24.x`                                                                   |
+| Install Command  | 자동 감지 사용 (Override 끄기)                                           |
+| Build Command    | `pnpm --workspace-root exec turbo run build --filter=@commit-health/web` |
+| Output Directory | Next.js 기본값 (`.next`)                                                 |
 
-빌드 명령은 `apps/web/vercel.json`에 정의했습니다. 모노레포 루트 외부 파일 포함 설정을 유지하고,
-Vercel에 `apps/web`을 프로젝트 Root Directory로 지정합니다.
+빌드 명령은 `apps/web/vercel.json`에 정의했습니다. Vercel에 `apps/web`을 프로젝트 Root Directory로 지정하고,
+Root Directory 밖의 소스를 빌드에 포함하는 설정을 켭니다. 루트의 `pnpm-workspace.yaml`, `pnpm-lock.yaml`,
+`package.json`, `turbo.json`이 빌드 환경에 필요합니다.
+`--workspace-root`는 pnpm의 실행 위치를 워크스페이스 루트로 지정하며, Vercel의 파일 접근 제한을 해제하는 옵션은 아닙니다.
+
+Install Command는 `vercel.json`과 Vercel 대시보드 모두에서 오버라이드하지 않습니다.
+Vercel은 lockfile을 기반으로 pnpm을 자동 감지하지만, lockfile 형식 `9.0`만으로 정확한 pnpm 버전까지 보장하지는 않습니다.
+현재 루트 `package.json`의 `packageManager`는 `pnpm@10.30.3`입니다. 이를 배포에서도 사용하려면 Vercel의
+Preview/Production 환경변수에 `ENABLE_EXPERIMENTAL_COREPACK=1`을 설정하고, 배포 로그에서 실제 pnpm 버전을 확인합니다.
 
 ## 환경변수와 인증 연결
 
@@ -49,5 +56,8 @@ GitHub 연동 배포는 push된 소스를 사용하므로, 아직 push하지 않
 - [Figma 로고 원본](https://www.figma.com/design/K3xzv6s9qHPFFx72KJPkP8/commit-health?node-id=69-10)
 - [Google 로그인 브랜딩과 공식 아이콘](https://developers.google.com/identity/branding-guidelines)
 - [Vercel 모노레포 설정](https://vercel.com/docs/monorepos)
+- [Vercel 패키지 매니저 감지](https://vercel.com/docs/package-managers)
+- [Vercel Corepack 설정](https://vercel.com/docs/builds/configure-a-build#corepack)
+- [pnpm 10 워크스페이스 루트 옵션](https://pnpm.io/10.x/pnpm-cli#-w---workspace-root)
 - [Vercel Node.js 지원 버전](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions)
 - [Next.js 환경변수](https://nextjs.org/docs/app/guides/environment-variables)
