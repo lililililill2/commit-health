@@ -2,9 +2,7 @@ import { Controller, Get, type INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import type { Server } from 'node:http';
-import { parse } from 'dotenv';
 import request from 'supertest';
 import type { Configuration } from 'openid-client';
 
@@ -14,6 +12,7 @@ import { CurrentUser, type SessionUser } from '../src/auth/auth-context.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { AuthService, hashToken } from '../src/modules/auth/auth.service.js';
 import { GoogleOidcService } from '../src/modules/auth/google-oidc.service.js';
+import { getTestDatabaseUrl } from './helpers/test-database.js';
 import {
   TestOidcProvider,
   TEST_CALLBACK,
@@ -48,6 +47,7 @@ describe('authentication with real PostgreSQL and a signed local OIDC provider',
   let prisma: PrismaService;
   let config: ConfigService;
   let provider: TestOidcProvider;
+  let databaseVerified = false;
   const subjects: string[] = [];
   const attempts = new Set<string>();
   const newSub = () => {
@@ -61,12 +61,7 @@ describe('authentication with real PostgreSQL and a signed local OIDC provider',
   };
 
   beforeAll(async () => {
-    const databaseUrl = process.env.DATABASE_URL ?? parse(readFileSync('.env')).DATABASE_URL;
-    if (
-      !databaseUrl ||
-      !['commit_health_dev', 'commit_health_test'].includes(new URL(databaseUrl).pathname.slice(1))
-    )
-      throw new Error('DB tests require commit_health_dev or commit_health_test');
+    const databaseUrl = getTestDatabaseUrl();
     provider = new TestOidcProvider();
     config = new ConfigService({
       DATABASE_URL: databaseUrl,
@@ -88,17 +83,24 @@ describe('authentication with real PostgreSQL and a signed local OIDC provider',
       .useValue(new LocalGoogleService(config, provider))
       .compile();
     prisma = moduleRef.get(PrismaService);
+    const [identity] = await prisma.client.$queryRaw<
+      { database: string }[]
+    >`SELECT current_database() AS database`;
+    if (identity.database !== 'commit_health_test')
+      throw new Error('Connected database is not commit_health_test');
+    databaseVerified = true;
     app = moduleRef.createNestApplication<INestApplication<Server>>({ logger: false });
     configureApp(app);
     await app.init();
   });
 
   afterAll(async () => {
-    if (prisma) {
+    if (databaseVerified && prisma) {
       await prisma.client.user.deleteMany({ where: { googleSub: { in: subjects } } });
       await prisma.client.oAuthAttempt.deleteMany({ where: { tokenHash: { in: [...attempts] } } });
     }
-    await app?.close();
+    if (app) await app.close();
+    else await prisma?.onModuleDestroy();
   });
 
   async function start(agent: Agent) {

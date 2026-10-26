@@ -1,0 +1,83 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "stream",
+  "remoteCache": { "enabled": false },
+  "globalDependencies": [".editorconfig", ".prettierrc", ".prettierignore", ".node-version"],
+  "globalEnv": ["NODE_ENV"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["dist/**"]
+    },
+    "@commit-health/web#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!next-env.d.ts"],
+      "env": ["NEXT_PUBLIC_*"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
+    },
+    "@commit-health/server#build": {
+      "dependsOn": ["^build", "prisma:generate"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["dist/**"]
+    },
+    "lint": { "inputs": ["$TURBO_DEFAULT$", ".env*"], "outputs": [] },
+    "@commit-health/server#lint": { "dependsOn": ["prisma:generate"] },
+    "typecheck": { "inputs": ["$TURBO_DEFAULT$", ".env*"], "outputs": [] },
+    "@commit-health/web#typecheck": {
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!next-env.d.ts"],
+      "env": ["NEXT_PUBLIC_*"],
+      "outputs": [".next/types/**", "*.tsbuildinfo"]
+    },
+    "@commit-health/server#typecheck": { "dependsOn": ["prisma:generate"] },
+    "dev": { "cache": false, "persistent": true },
+    "@commit-health/server#dev": {
+      "dependsOn": ["prisma:generate"],
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "GOOGLE_*",
+        "FRONTEND_URL",
+        "CORS_ORIGIN",
+        "COOKIE_SAME_SITE",
+        "PORT"
+      ]
+    },
+    "test": {
+      "dependsOn": ["prisma:generate"],
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "GOOGLE_*",
+        "FRONTEND_URL",
+        "CORS_ORIGIN",
+        "COOKIE_SAME_SITE",
+        "PORT"
+      ]
+    },
+    "test:e2e": {
+      "dependsOn": ["prisma:generate"],
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "GOOGLE_*",
+        "FRONTEND_URL",
+        "CORS_ORIGIN",
+        "COOKIE_SAME_SITE",
+        "PORT"
+      ]
+    },
+    "test:db": {
+      "dependsOn": ["prisma:generate"],
+      "cache": false,
+      "passThroughEnv": ["TEST_DATABASE_URL"]
+    },
+    "prisma:generate": {
+      "inputs": ["prisma/schema.prisma", "prisma.config.ts", "package.json"],
+      "env": ["PRISMA_*"],
+      "passThroughEnv": ["DATABASE_URL"],
+      "outputs": ["src/generated/prisma/**"]
+    }
+  }
+}

@@ -8,23 +8,26 @@
     "pnpm": ">=10.30.3 <11"
   },
   "scripts": {
-    "dev:web": "pnpm --filter @commit-health/web dev",
-    "dev:server": "pnpm --filter @commit-health/server dev",
-    "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck",
-    "build": "pnpm -r build",
-    "test": "pnpm --filter @commit-health/server test",
-    "test:e2e": "pnpm --filter @commit-health/server test:e2e",
-    "test:db": "pnpm --filter @commit-health/server test:db",
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@commit-health/web",
+    "dev:server": "turbo run dev --filter=@commit-health/server",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "test:db": "turbo run test:db",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prisma:generate": "pnpm --filter @commit-health/server prisma:generate",
     "prisma:validate": "pnpm --filter @commit-health/server prisma:validate",
     "prisma:migrate": "pnpm --filter @commit-health/server prisma:migrate",
     "prisma:deploy": "pnpm --filter @commit-health/server prisma:deploy",
+    "prisma:test:deploy": "pnpm --filter @commit-health/server prisma:test:deploy",
     "prisma:studio": "pnpm --filter @commit-health/server prisma:studio"
   },
   "devDependencies": {
-    "prettier": "3.9.10"
+    "prettier": "3.9.10",
+    "turbo": "2.11.10"
   }
 }

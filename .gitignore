@@ -1,6 +1,7 @@
 # Dependencies and generated output
 node_modules/
 .pnpm-store/
+.turbo/
 .next/
 out/
 dist/
@@ -12,6 +13,7 @@ apps/server/src/generated/
 .env
 .env.*
 !.env.example
+!.env.test.example
 *.pem
 *.key
 .aws/

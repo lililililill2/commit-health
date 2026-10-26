@@ -75,3 +75,5 @@ callback 응답은 즉시 깨끗한 프론트엔드 URL로 이동하고 `no-stor
 
 자동 검증은 `pnpm test`, `pnpm test:e2e`, `pnpm test:db`입니다.
 DB 테스트는 실제 DB와 로컬 서명 OIDC provider를 사용하며 Google의 실제 동의 화면 검증과 구분합니다.
+`test:db`는 `.env.test` 또는 환경변수의 `TEST_DATABASE_URL`만 사용하며 `commit_health_test` 이외의 DB는 거부합니다.
+개발 `.env`의 `DATABASE_URL`은 테스트 연결의 fallback으로 사용하지 않습니다. 테스트 시작 전에 전용 migration을 적용합니다.
