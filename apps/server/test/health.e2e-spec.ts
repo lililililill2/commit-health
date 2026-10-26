@@ -14,6 +14,7 @@ import type { Server } from 'node:http';
 
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/config/configure-app.js';
+import { Public } from '../src/auth/auth-context.js';
 
 class ProbeDto {
   @IsString()
@@ -22,6 +23,7 @@ class ProbeDto {
 
 // Test-only routes exercise global validation and the default exception contract.
 @Controller('_test')
+@Public()
 class ProbeController {
   @Post('validation')
   validate(@Body() body: ProbeDto): ProbeDto {

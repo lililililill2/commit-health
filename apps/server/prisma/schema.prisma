@@ -8,4 +8,32 @@ datasource db {
   provider = "postgresql"
 }
 
-// Domain models and the first migration will be added after the data design is agreed.
+model User {
+  id        String    @id @default(uuid()) @db.Uuid
+  googleSub String    @unique @db.VarChar(255)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  sessions  Session[]
+}
+
+model Session {
+  tokenHash String   @id @db.Char(64)
+  userId    String   @db.Uuid
+  csrfToken String   @db.VarChar(64)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt DateTime @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model OAuthAttempt {
+  tokenHash    String   @id @db.Char(64)
+  state        String   @db.VarChar(64)
+  nonce        String   @db.VarChar(64)
+  codeVerifier String   @db.VarChar(128)
+  expiresAt    DateTime @db.Timestamptz(3)
+
+  @@index([expiresAt])
+}

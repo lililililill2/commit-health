@@ -1,2 +1,2 @@
 export { getHealth } from './health';
-export { apiClient } from './instance';
+export { apiClient, apiBaseUrl } from './instance';

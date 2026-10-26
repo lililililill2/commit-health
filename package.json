@@ -15,6 +15,7 @@
     "build": "pnpm -r build",
     "test": "pnpm --filter @commit-health/server test",
     "test:e2e": "pnpm --filter @commit-health/server test:e2e",
+    "test:db": "pnpm --filter @commit-health/server test:db",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prisma:generate": "pnpm --filter @commit-health/server prisma:generate",

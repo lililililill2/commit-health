@@ -29,4 +29,26 @@ describe('environment configuration', () => {
       'DATABASE_URL',
     );
   });
+
+  it('rejects partial Google credentials', () => {
+    expect(() => validateEnvironment({ GOOGLE_CLIENT_ID: 'configured' })).toThrow('Configure both');
+  });
+
+  it('requires HTTPS origins and callback in production', () => {
+    expect(() => validateEnvironment({ NODE_ENV: 'production' })).toThrow();
+    expect(
+      validateEnvironment({
+        NODE_ENV: 'production',
+        FRONTEND_URL: 'https://app.example.com',
+        CORS_ORIGIN: 'https://app.example.com',
+        GOOGLE_CALLBACK_URL: 'https://api.example.com/api/auth/google/callback',
+        COOKIE_SAME_SITE: 'none',
+      }).COOKIE_SAME_SITE,
+    ).toBe('none');
+  });
+
+  it('rejects insecure SameSite=None cookies and unapproved frontend origins', () => {
+    expect(() => validateEnvironment({ COOKIE_SAME_SITE: 'none' })).toThrow();
+    expect(() => validateEnvironment({ FRONTEND_URL: 'http://localhost:3001' })).toThrow();
+  });
 });

@@ -1,0 +1,10 @@
+{
+  "testEnvironment": "node",
+  "setupFiles": ["reflect-metadata"],
+  "extensionsToTreatAsEsm": [".ts"],
+  "moduleNameMapper": { "^(\\.{1,2}/.*)\\.js$": "$1" },
+  "rootDir": "..",
+  "testRegex": "test/.*\\.db-spec\\.ts$",
+  "testTimeout": 20000,
+  "transform": { "^.+\\.ts$": ["ts-jest", { "useESM": true }] }
+}
