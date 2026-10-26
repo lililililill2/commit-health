@@ -2,22 +2,12 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { getSession, sessionQueryKey, useSession } from '@/entities/session';
-import { apiBaseUrl, apiClient } from '@/shared/api';
+import { apiClient } from '@/shared/api';
 
-export function GoogleLoginButton() {
-  return (
-    <a
-      href={`${apiBaseUrl.replace(/\/$/, '')}/auth/google`}
-      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-5 py-3 font-medium hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700"
-    >
-      Google로 로그인
-    </a>
-  );
-}
+import { GoogleLoginButton } from './google-login-button';
 
 export function AuthControls() {
   const session = useSession();
@@ -42,36 +32,38 @@ export function AuthControls() {
     },
   });
 
-  if (session.isPending) return <p role="status">로그인 상태를 확인하고 있습니다…</p>;
+  if (session.isPending)
+    return (
+      <p role="status" className="py-3 text-sm">
+        로그인 상태를 확인하고 있습니다…
+      </p>
+    );
   if (session.isError)
     return (
-      <div role="alert">
-        <p>로그인 상태를 확인하지 못했습니다.</p>
-        <button className="mt-2 underline" onClick={() => void session.refetch()}>
-          다시 확인
-        </button>
+      <div className="space-y-4">
+        <GoogleLoginButton />
+        <div role="alert" className="text-sm">
+          <p>로그인 상태를 확인하지 못했습니다.</p>
+          <button type="button" className="mt-2 underline" onClick={() => void session.refetch()}>
+            다시 확인
+          </button>
+        </div>
       </div>
     );
   if (!session.data) return <GoogleLoginButton />;
 
   return (
     <div className="space-y-3">
-      <p className="font-medium text-emerald-700">Google 계정으로 로그인되어 있습니다.</p>
-      <div className="flex flex-wrap items-center gap-4">
-        <Link href="/account" className="underline">
-          내 계정
-        </Link>
-        <button
-          type="button"
-          disabled={logout.isPending}
-          onClick={() => logout.mutate()}
-          className="rounded-lg border border-slate-300 px-4 py-2 disabled:opacity-50"
-        >
-          {logout.isPending ? '로그아웃 중…' : '로그아웃'}
-        </button>
-      </div>
+      <button
+        type="button"
+        disabled={logout.isPending}
+        onClick={() => logout.mutate()}
+        className="inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-white/30 px-5 py-3 text-sm font-medium transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:cursor-wait disabled:opacity-50"
+      >
+        {logout.isPending ? '로그아웃 중…' : '로그아웃'}
+      </button>
       {logout.isError && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="text-sm text-red-400">
           로그아웃에 실패했습니다. 다시 시도해 주세요.
         </p>
       )}

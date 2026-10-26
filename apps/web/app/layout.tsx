@@ -6,7 +6,7 @@ import '@/app/styles/globals.css';
 
 export const metadata: Metadata = {
   title: 'Commit Health',
-  description: 'Commit Health 프로젝트 개발 환경',
+  description: 'Google 계정으로 Commit Health에 로그인하세요.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
