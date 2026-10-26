@@ -1,0 +1,19 @@
+# Keep local secrets and generated files out of CLI uploads.
+.git
+.vercel
+.pnpm-store
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+.aws
+.agents
+.codex
+.verification
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/.turbo
+**/*.log
+**/*.tsbuildinfo

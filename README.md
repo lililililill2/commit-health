@@ -27,7 +27,7 @@ commit-health/
 │   │   ├── pages/               # src/pages의 Pages Router 오인 방지
 │   │   └── src/
 │   │       ├── app/             # Provider, 전역 스타일
-│   │       ├── pages/           # 홈, 계정, 로그인 실패 페이지
+│   │       ├── pages/           # 홈, 로그인 실패 페이지
 │   │       ├── features/auth/   # 로그인·로그아웃·페이지 접근 제어
 │   │       ├── entities/session/ # 현재 로그인 상태, Query
 │   │       └── shared/api/      # credentials 포함 Axios 인스턴스, Health API
@@ -80,7 +80,7 @@ Prisma Client는 의존성 설치와 서버의 개발 실행, 타입 검사, 빌
 비밀정보는 런타임에 전달하며 `.env`를 캐시 산출물에 넣지 않습니다. 원격 캐시는 비활성화되어 있습니다.
 Migration·Prisma Studio 같은 DB 관리 명령은 기존대로 직접 실행하며 캐시하지 않습니다.
 Prisma Client는 DB 기능을 처음 호출할 때 초기화합니다. Health API는 DB와 독립적이며, 로그인 기능에는 DB와 migration 적용이 필요합니다.
-API 연결 상태는 브라우저에서 TanStack Query와 공용 Axios 인스턴스로 실제 요청한 결과입니다.
+첫 화면은 Figma 로고와 Google 로그인 버튼으로 구성합니다. 로그인 상태는 TanStack Query와 공용 Axios 인스턴스로 복원합니다.
 Pretendard는 설치한 패키지의 폰트를 자체 제공하므로 외부 폰트 CDN을 요청하지 않습니다.
 
 ## 환경변수 설정 방법
@@ -170,3 +170,5 @@ GitHub Actions의 [CI 워크플로](.github/workflows/ci.yml)는 모든 PR, `mai
 `Database integration`은 독립된 PostgreSQL 17 컨테이너의 `commit_health_test`에 migration을 적용한 뒤 DB 테스트를 실행합니다.
 CI는 실제 `.env`나 Google 자격 증명 없이 동작하며 GitHub Secrets 등록이 필요하지 않습니다.
 설정 파일을 push하면 저장소의 Actions 탭에서 결과를 확인할 수 있습니다. 배포는 수행하지 않습니다.
+
+Vercel 프론트엔드 배포 설정과 환경변수는 [배포 안내](docs/deployment.md)를 참고하세요.
