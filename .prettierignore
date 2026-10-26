@@ -1,5 +1,6 @@
 node_modules/
 .turbo/
+.vercel/
 pnpm-lock.yaml
 .next/
 dist/
