@@ -31,6 +31,11 @@
     },
     "@commit-health/server#typecheck": { "dependsOn": ["prisma:generate"] },
     "dev": { "cache": false, "persistent": true },
+    "@commit-health/web#dev": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["API_SERVER_ORIGIN"]
+    },
     "@commit-health/server#dev": {
       "dependsOn": ["prisma:generate"],
       "cache": false,
