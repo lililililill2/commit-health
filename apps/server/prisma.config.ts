@@ -4,6 +4,7 @@ import { defineConfig } from 'prisma/config';
 export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: { path: 'prisma/migrations' },
-  // Generation and validation work without a database. Migration commands require this variable.
-  datasource: { url: process.env.DATABASE_URL },
+  // CLI migrations prefer Neon's direct connection; local .env keeps using DATABASE_URL.
+  // Generation and validation still work without either variable.
+  datasource: { url: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL },
 });

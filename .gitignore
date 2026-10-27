@@ -15,6 +15,7 @@ apps/server/src/generated/
 .env.*
 !.env.example
 !.env.test.example
+!.env.production.example
 *.pem
 *.key
 .aws/
