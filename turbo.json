@@ -13,7 +13,7 @@
     "@commit-health/web#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*", "!next-env.d.ts"],
-      "env": ["NEXT_PUBLIC_*"],
+      "env": ["NEXT_PUBLIC_*", "API_SERVER_ORIGIN"],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
     "@commit-health/server#build": {
@@ -26,7 +26,7 @@
     "typecheck": { "inputs": ["$TURBO_DEFAULT$", ".env*"], "outputs": [] },
     "@commit-health/web#typecheck": {
       "inputs": ["$TURBO_DEFAULT$", ".env*", "!next-env.d.ts"],
-      "env": ["NEXT_PUBLIC_*"],
+      "env": ["NEXT_PUBLIC_*", "API_SERVER_ORIGIN"],
       "outputs": [".next/types/**", "*.tsbuildinfo"]
     },
     "@commit-health/server#typecheck": { "dependsOn": ["prisma:generate"] },
