@@ -1,0 +1,125 @@
+.viewer {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #394555;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(145deg, #4b586b, #394555 50%, #303c4a);
+  pointer-events: none;
+}
+
+.backdrop::before,
+.backdrop::after {
+  position: absolute;
+  inset: -25%;
+  content: '';
+}
+
+.backdrop::before {
+  background:
+    radial-gradient(ellipse at 24% 35%, rgb(145 188 202 / 40%), transparent 48%),
+    radial-gradient(ellipse at 76% 68%, rgb(159 151 192 / 30%), transparent 45%);
+  animation: ambient-drift 24s ease-in-out infinite alternate;
+}
+
+.backdrop::after {
+  background:
+    radial-gradient(ellipse at 65% 28%, rgb(205 196 171 / 16%), transparent 42%),
+    linear-gradient(120deg, transparent 30%, rgb(197 222 231 / 8%) 48%, transparent 65%);
+  animation: ambient-sweep 32s ease-in-out infinite alternate;
+}
+
+@keyframes ambient-drift {
+  from {
+    transform: translate3d(-5%, -3%, 0) rotate(-5deg) scale(1);
+  }
+
+  to {
+    transform: translate3d(6%, 5%, 0) rotate(6deg) scale(1.08);
+  }
+}
+
+@keyframes ambient-sweep {
+  from {
+    opacity: 0.55;
+    transform: translate3d(6%, -4%, 0) rotate(4deg);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(-6%, 5%, 0) rotate(-6deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop::before,
+  .backdrop::after {
+    animation: none;
+  }
+}
+
+.overlay {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+}
+
+.viewer canvas {
+  display: block;
+  touch-action: none;
+}
+
+.status {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  background: rgb(48 59 74 / 85%);
+  color: #ece8e0;
+  text-align: center;
+}
+
+.message {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.description {
+  max-width: 360px;
+  margin: 0;
+  color: #a0a6b1;
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.retryButton {
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 10px 20px;
+  border: 1px solid #5f6673;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.retryButton:focus-visible {
+  outline: 2px solid #ece8e0;
+  outline-offset: 3px;
+}
