@@ -119,3 +119,76 @@ jobs:
 
       - name: Apply test migrations and run database integration tests
         run: pnpm test:db
+
+  notify:
+    name: Discord CI Notification
+    runs-on: ubuntu-24.04
+    needs: [quality, database]
+
+    if: >-
+      ${{
+        !cancelled() &&
+        github.actor != 'dependabot[bot]' &&
+        (
+          github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository
+        )
+      }}
+
+    steps:
+      - name: Send Discord notification
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          QUALITY: ${{ needs.quality.result }}
+          DATABASE: ${{ needs.database.result }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          EVENT: ${{ github.event_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "Discord webhook is not configured."
+            exit 0
+          fi
+
+          if [ "$QUALITY" = "success" ] && \
+             [ "$DATABASE" = "success" ]; then
+            TITLE="✅ CI 검사 성공"
+            COLOR=5763719
+          else
+            TITLE="❌ CI 검사 실패"
+            COLOR=15548997
+          fi
+
+          PAYLOAD=$(jq -n \
+            --arg title "$TITLE" \
+            --arg repo "$REPO" \
+            --arg branch "$BRANCH" \
+            --arg actor "$ACTOR" \
+            --arg event "$EVENT" \
+            --arg quality "$QUALITY" \
+            --arg database "$DATABASE" \
+            --arg url "$RUN_URL" \
+            --argjson color "$COLOR" \
+            '{
+              embeds: [{
+                title: $title,
+                color: $color,
+                fields: [
+                  {name:"저장소", value:$repo, inline:true},
+                  {name:"브랜치", value:$branch, inline:true},
+                  {name:"실행자", value:$actor, inline:true},
+                  {name:"이벤트", value:$event, inline:true},
+                  {name:"코드 품질 및 빌드", value:$quality, inline:true},
+                  {name:"DB 통합 테스트", value:$database, inline:true}
+                ],
+                description: ("[GitHub Actions 결과 확인](" + $url + ")")
+              }]
+            }')
+
+          curl --fail-with-body -sS \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL"
+        
