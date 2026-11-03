@@ -8,7 +8,7 @@ export const ORBIT_MOTION = {
   enableDamping: true,
   dampingFactor: 0.075,
   rotateSpeed: 0.28,
-  zoomSpeed: 0.8,
+  enableZoom: false,
 } as const;
 export const MIN_POLAR_ANGLE = (15 * Math.PI) / 180;
 export const MAX_POLAR_ANGLE = (80 * Math.PI) / 180;
@@ -89,7 +89,8 @@ export function cameraFrame(size: Vector3, aspect: number) {
   const distance = fitDistance(size, aspect);
   const minDistance = Math.max(radius * 1.15, distance * 0.65);
   const maxDistance = distance * 1.9;
-  return { distance, minDistance, maxDistance, near: radius / 100, far: maxDistance + radius * 3 };
+  // Keep the background's fade-out inside the far clipping plane as the camera refits.
+  return { distance, minDistance, maxDistance, near: radius / 100, far: maxDistance + radius * 10 };
 }
 
 export function frameCamera(

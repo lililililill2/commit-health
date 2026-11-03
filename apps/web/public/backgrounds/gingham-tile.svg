@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" fill="#f6f9fb" />
+  <defs>
+    <path id="stripe" d="M24 0C18 32 18 64 24 96S30 160 24 192H70C76 160 76 128 70 96S64 32 70 0Z" />
+  </defs>
+  <g fill="#9fbed2" fill-opacity=".28">
+    <use href="#stripe" />
+    <use href="#stripe" x="96" />
+  </g>
+  <g fill="#9fbed2" fill-opacity=".28" transform="rotate(90 96 96)">
+    <use href="#stripe" />
+    <use href="#stripe" x="96" />
+  </g>
+</svg>

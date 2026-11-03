@@ -2,9 +2,29 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import test from 'node:test';
-import { Box3, PerspectiveCamera, Vector3 } from 'three';
+import {
+  Box3,
+  BoxGeometry,
+  Color,
+  InstancedMesh,
+  Matrix4,
+  MeshStandardMaterial,
+  PerspectiveCamera,
+  Ray,
+  StaticDrawUsage,
+  Vector3,
+} from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
+import {
+  CAMPUS_BUILDINGS,
+  CAMPUS_TREES,
+  backdropFog,
+  backdropFrame,
+  sceneryVisibility,
+} from './backdrop-config.ts';
+import { BUILDING_WINDOW_COUNT, populateBuildingWindows } from './building-windows.ts';
+import { createOrbitActivity } from './orbit-activity.ts';
 import {
   FIELD_OF_VIEW,
   FRAME_FILL,
@@ -117,7 +137,7 @@ for (const aspect of [320 / 900, 1, 1440 / 900, 2560 / 1080]) {
   });
 }
 
-test('zoom limits keep the camera outside the model and avoid an excessively distant view', () => {
+test('camera distance bounds keep it outside the model and avoid an excessively distant view', () => {
   for (const aspect of [0.35, 1, 1.6, 2.4]) {
     const frame = cameraFrame(originalSize, aspect);
     const radius = originalSize.length() / 2;
@@ -126,6 +146,151 @@ test('zoom limits keep the camera outside the model and avoid an excessively dis
     assert.ok(frame.maxDistance < frame.distance * 2);
     assert.ok(frame.near < frame.minDistance - radius);
     assert.ok(frame.far > frame.maxDistance + radius);
+  }
+});
+
+test('the 3D floor stays below the actual room and contains the full camera orbit', () => {
+  const bounds = new Box3().setFromObject(prepareDormModel(gltf.scene).root, true);
+  for (const aspect of [0.35, 1, 1.6, 2.4]) {
+    const camera = cameraFrame(originalSize, aspect);
+    const backdrop = backdropFrame(originalSize, camera.maxDistance);
+    assert.ok(backdrop.floorY < bounds.min.y, 'The floor must never intersect the room');
+    assert.ok(bounds.min.y - backdrop.floorY < 0.1, 'The room must rest close to the floor');
+    assert.ok(backdrop.extent / 2 > camera.maxDistance + backdrop.radius);
+  }
+});
+
+test('background fog leaves the room untouched and fades before the far clipping plane', () => {
+  for (const aspect of [0.35, 1, 1.6, 2.4]) {
+    const frame = cameraFrame(originalSize, aspect);
+    const backdrop = backdropFrame(originalSize, frame.maxDistance);
+    for (const distance of [frame.minDistance, frame.distance, frame.maxDistance])
+      for (const [polar, azimuth] of [
+        [MIN_POLAR_ANGLE, MIN_AZIMUTH_ANGLE],
+        [MAX_POLAR_ANGLE, MAX_AZIMUTH_ANGLE],
+      ]) {
+        const camera = new PerspectiveCamera(FIELD_OF_VIEW, aspect, frame.near, frame.far);
+        camera.position.setFromSphericalCoords(distance, polar, azimuth);
+        camera.lookAt(0, 0, 0);
+        camera.updateMatrixWorld();
+        const fog = backdropFog(distance, backdrop.radius);
+        assert.ok(fog.far < camera.far, 'The background must fade before it is clipped');
+        for (const x of [-1, 1])
+          for (const y of [-1, 1])
+            for (const z of [-1, 1]) {
+              const corner = new Vector3(
+                (x * originalSize.x) / 2,
+                (y * originalSize.y) / 2,
+                (z * originalSize.z) / 2,
+              ).applyMatrix4(camera.matrixWorldInverse);
+              assert.ok(-corner.z < fog.near, 'No part of the room may enter the fog');
+            }
+      }
+  }
+});
+
+test('campus scenery stays outside the room and fades wherever it would obstruct the view', () => {
+  const floorY = -originalSize.y / 2 - 0.05;
+  const room = new Box3(
+    originalSize.clone().multiplyScalar(-0.5),
+    originalSize.clone().multiplyScalar(0.5),
+  );
+  const scenery = [
+    ...CAMPUS_BUILDINGS.map((building) => ({
+      ...building,
+      halfX: (building.width + 1.5) / 2,
+      halfZ: (building.depth + 2.8) / 2,
+      top: building.height + 0.7,
+    })),
+    ...CAMPUS_TREES.map((tree) => ({
+      ...tree,
+      halfX: 1.8 * tree.scale,
+      halfZ: 1.6 * tree.scale,
+      top: 4.5 * tree.scale,
+    })),
+  ];
+  const targets = [new Vector3()];
+  for (const x of [-1, 1])
+    for (const y of [-1, 1])
+      for (const z of [-1, 1])
+        targets.push(
+          new Vector3((x * originalSize.x) / 2, (y * originalSize.y) / 2, (z * originalSize.z) / 2),
+        );
+  for (const item of scenery) {
+    const bounds = new Box3(
+      new Vector3(item.x - item.halfX, floorY, item.z - item.halfZ),
+      new Vector3(item.x + item.halfX, floorY + item.top, item.z + item.halfZ),
+    );
+    assert.ok(!bounds.intersectsBox(room), 'Scenery must not enter the original room');
+    for (const aspect of [0.35, 1, 1.6, 2.4]) {
+      const frame = cameraFrame(originalSize, aspect);
+      for (const distance of [frame.minDistance, frame.distance, frame.maxDistance])
+        for (const polar of [MIN_POLAR_ANGLE, Math.PI / 4, MAX_POLAR_ANGLE])
+          for (
+            let azimuth = MIN_AZIMUTH_ANGLE;
+            azimuth <= MAX_AZIMUTH_ANGLE;
+            azimuth += Math.PI / 12
+          ) {
+            const camera = new Vector3().setFromSphericalCoords(distance, polar, azimuth);
+            for (const target of targets) {
+              const ray = new Ray(camera, target.clone().sub(camera).normalize());
+              const hit = ray.intersectBox(bounds, new Vector3());
+              if (
+                bounds.containsPoint(camera) ||
+                (hit && hit.distanceTo(camera) < target.distanceTo(camera))
+              )
+                assert.ok(
+                  sceneryVisibility(item.x, item.z, camera) < 0.005,
+                  'Foreground scenery must disappear before obstructing the room',
+                );
+            }
+          }
+    }
+  }
+});
+
+test('instanced building windows retain every pane, original bounds, and both colors', () => {
+  for (const building of CAMPUS_BUILDINGS) {
+    const geometry = new BoxGeometry();
+    const material = new MeshStandardMaterial();
+    const mesh = new InstancedMesh(geometry, material, BUILDING_WINDOW_COUNT);
+    populateBuildingWindows(mesh, building.width, building.height, building.depth);
+    assert.equal(mesh.count, 36);
+    assert.equal(mesh.instanceMatrix.usage, StaticDrawUsage);
+    assert.ok(mesh.boundingBox && mesh.boundingSphere);
+    const expectedMin = new Vector3(-building.width / 2 - 0.055, 0.98, -building.depth / 2 - 0.055);
+    const expectedMax = new Vector3(
+      building.width / 2 + 0.055,
+      2.02 + (2 * (building.height - 1.8)) / 3,
+      building.depth / 2 + 0.055,
+    );
+    assert.ok(mesh.boundingBox.min.distanceTo(expectedMin) < 0.000001);
+    assert.ok(mesh.boundingBox.max.distanceTo(expectedMax) < 0.000001);
+    const counts = new Map();
+    for (let i = 0; i < mesh.count; i++) {
+      const color = new Color();
+      mesh.getColorAt(i, color);
+      const key = color.getHexString();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+      const matrix = new Matrix4();
+      mesh.getMatrixAt(i, matrix);
+      const bounds = new Box3()
+        .setFromBufferAttribute(geometry.attributes.position)
+        .applyMatrix4(matrix);
+      for (const x of [bounds.min.x, bounds.max.x])
+        for (const y of [bounds.min.y, bounds.max.y])
+          for (const z of [bounds.min.z, bounds.max.z])
+            assert.ok(mesh.boundingSphere.distanceToPoint(new Vector3(x, y, z)) < 0.000001);
+    }
+    assert.deepEqual(Object.fromEntries(counts), { '93b4bb': 34, d8d8b8: 2 });
+    assert.equal(
+      material.color.getHexString(),
+      'ffffff',
+      'Instance colors must not tint the shared material',
+    );
+    mesh.dispose();
+    geometry.dispose();
+    material.dispose();
   }
 });
 
@@ -180,4 +345,57 @@ test('the same OrbitControls used by Drei slows down gradually after a rotation 
   }
   for (let i = 0; i < 200; i++) controls.update();
   assert.ok(Math.abs(controls.getAzimuthalAngle() - destination) < 0.000001);
+});
+
+test('UI stays hidden through dragging and the remaining camera damping', (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  const changes = [];
+  const activity = createOrbitActivity((active) => changes.push(active));
+  activity.change();
+  assert.deepEqual(changes, [], 'Initial camera fitting must not hide the UI');
+  activity.start();
+  activity.start();
+  activity.change();
+  context.mock.timers.tick(1000);
+  assert.deepEqual(changes, [true], 'Dragging must stay active without repeated React updates');
+  activity.end();
+  context.mock.timers.tick(100);
+  activity.change();
+  context.mock.timers.tick(179);
+  assert.deepEqual(changes, [true], 'Damping must extend the hidden period after pointer release');
+  context.mock.timers.tick(1);
+  assert.deepEqual(changes, [true, false]);
+  activity.dispose();
+});
+
+test('starting another drag cancels a pending UI reveal', (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  const changes = [];
+  const activity = createOrbitActivity((active) => changes.push(active));
+  activity.start();
+  activity.end();
+  context.mock.timers.tick(100);
+  activity.start();
+  context.mock.timers.tick(500);
+  assert.deepEqual(changes, [true]);
+  activity.end();
+  context.mock.timers.tick(180);
+  assert.deepEqual(changes, [true, false]);
+  activity.dispose();
+});
+
+test('unmount cleanup cancels delayed callbacks and supports a Strict Mode reattachment', (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  const changes = [];
+  const activity = createOrbitActivity((active) => changes.push(active));
+  activity.start();
+  activity.end();
+  activity.dispose();
+  context.mock.timers.tick(500);
+  assert.deepEqual(changes, [true, false], 'Unmount must restore the UI and cancel the timer');
+  activity.start();
+  activity.end();
+  context.mock.timers.tick(180);
+  assert.deepEqual(changes, [true, false, true, false]);
+  activity.dispose();
 });

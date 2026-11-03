@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Component, useCallback, useState, type ReactNode } from 'react';
+import { Component, memo, useCallback, useState, type ReactNode } from 'react';
 
 import { ViewerStatus } from './viewer-status';
 import styles from './dorm-viewer.module.css';
@@ -20,17 +20,22 @@ class ViewerBoundary extends Component<{ children: ReactNode }, { failed: boolea
   }
 }
 
-export function DormViewer({ children }: { children?: ReactNode }) {
+export const DormViewer = memo(function DormViewer({
+  children,
+  onInteractionChange,
+}: {
+  children?: ReactNode;
+  onInteractionChange?: (active: boolean) => void;
+}) {
   const [ready, setReady] = useState(false);
   const onReady = useCallback(() => setReady(true), []);
   return (
     <div className={styles.viewer}>
-      <div className={styles.backdrop} aria-hidden="true" />
       <ViewerBoundary>
-        <DormCanvas onReady={onReady} />
+        <DormCanvas onReady={onReady} onInteractionChange={onInteractionChange} />
         {!ready && <ViewerStatus />}
       </ViewerBoundary>
       {children && <div className={styles.overlay}>{children}</div>}
     </div>
   );
-}
+});
