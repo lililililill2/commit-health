@@ -1,8 +1,7 @@
-
-language: "ko-KR"
+language: 'ko-KR'
 
 reviews:
-  profile: "chill"
+  profile: 'chill'
   auto_review:
     enabled: true
     drafts: false
