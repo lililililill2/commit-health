@@ -25,6 +25,7 @@ import {
 } from '../model/backdrop-config';
 import { CampusClouds } from './campus-clouds';
 import { CampusBench, CampusBuilding, CampusTree, SceneryGroup } from './campus-scenery';
+import { CampusSun } from './campus-sun';
 
 function PavedPath({
   x = 0,
@@ -101,6 +102,7 @@ export function DormBackdrop({
   return (
     <>
       <fog ref={fog} attach="fog" args={[BACKDROP_COLOR, fade.near, fade.far]} />
+      <CampusSun />
       <CampusClouds />
       <mesh position={[0, frame.floorY, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[frame.extent, frame.extent]} />

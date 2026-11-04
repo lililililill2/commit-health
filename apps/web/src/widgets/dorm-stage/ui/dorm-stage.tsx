@@ -9,14 +9,25 @@ import { cn } from '@/shared/lib';
 import { DormHud } from './dorm-hud';
 import { LiveClock } from './live-clock';
 
-const fadeClasses =
-  'pointer-events-none absolute inset-0 transition-opacity duration-[220ms] ease-[cubic-bezier(0,0,0.58,1)] motion-reduce:transition-none';
+const fadeTransitionClasses =
+  'transition-opacity duration-[220ms] ease-[cubic-bezier(0,0,0.58,1)] motion-reduce:transition-none';
+const fadeClasses = cn('pointer-events-none absolute inset-0', fadeTransitionClasses);
+const glassClasses = cn(
+  'pointer-events-none absolute inset-x-0 z-2 bg-black/55 backdrop-blur-md',
+  fadeTransitionClasses,
+);
 
 export function DormStage({ title, children }: { title: string; children?: ReactNode }) {
   const [rotating, setRotating] = useState(false);
+  const visibilityClass = rotating ? 'opacity-0' : 'opacity-100';
   return (
     <main
-      className="relative h-dvh overflow-hidden bg-[#9bccef] text-white"
+      className={cn(
+        'relative h-dvh overflow-hidden bg-[#9bccef] text-white',
+        '[--stage-header-height:96px] [--stage-footer-height:48px]',
+        'mobile:[--stage-header-height:84px] mobile:[--stage-footer-height:32px]',
+        'short-screen:[--stage-header-height:64px] short-screen:[--stage-footer-height:24px]',
+      )}
       aria-labelledby="dorm-heading"
     >
       <h1 id="dorm-heading" className="sr-only">
@@ -30,7 +41,7 @@ export function DormStage({ title, children }: { title: string; children?: React
         className={cn(
           fadeClasses,
           'z-1 overflow-hidden [contain:paint] will-change-[opacity]',
-          rotating ? 'opacity-0' : 'opacity-100',
+          visibilityClass,
         )}
         data-hidden={rotating}
         aria-hidden="true"
@@ -60,12 +71,28 @@ export function DormStage({ title, children }: { title: string; children?: React
           )}
         />
       </div>
+      {/* Ancestor opacity would prevent the glass from blurring the 3D scene during a fade. */}
+      <div
+        className={cn(
+          glassClasses,
+          'top-0 h-[var(--stage-header-height)] border-b border-white/10 shadow-[0_10px_22px_-8px_rgb(0_0_0/45%)]',
+          visibilityClass,
+        )}
+        aria-hidden="true"
+      />
+      <div
+        className={cn(
+          glassClasses,
+          'bottom-0 h-[var(--stage-footer-height)] border-t border-white/10 shadow-[0_-10px_22px_-8px_rgb(0_0_0/45%)]',
+          visibilityClass,
+        )}
+        aria-hidden="true"
+      />
       <div
         className={cn(
           fadeClasses,
-          'z-2 grid min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[96px_minmax(0,1fr)_48px]',
-          'mobile:grid-rows-[84px_minmax(0,1fr)_32px] short-screen:grid-rows-[64px_minmax(0,1fr)_24px]',
-          rotating ? 'opacity-0' : 'opacity-100',
+          'z-2 grid min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[var(--stage-header-height)_minmax(0,1fr)_var(--stage-footer-height)]',
+          visibilityClass,
         )}
         data-hidden={rotating}
         inert={rotating}
@@ -73,8 +100,7 @@ export function DormStage({ title, children }: { title: string; children?: React
       >
         <header
           className={cn(
-            'relative z-2 flex items-center justify-between gap-6 bg-[#304655] px-[clamp(20px,3.2vw,64px)]',
-            'border-b border-white/10 shadow-[0_10px_22px_-8px_rgb(23_43_58/55%)]',
+            'relative z-2 flex items-center justify-between gap-6 px-[clamp(20px,3.2vw,64px)]',
             'mobile:gap-4 mobile:px-4',
           )}
         >
@@ -89,10 +115,7 @@ export function DormStage({ title, children }: { title: string; children?: React
           <LiveClock />
         </header>
         <DormHud />
-        <footer
-          className="relative z-2 border-t border-white/10 bg-[#304655] shadow-[0_-10px_22px_-8px_rgb(23_43_58/55%)]"
-          aria-hidden="true"
-        />
+        <footer className="relative z-2" aria-hidden="true" />
       </div>
     </main>
   );
