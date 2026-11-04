@@ -67,17 +67,14 @@ const quests = [
   {
     id: 'daily-visit',
     label: '오늘 출석하기',
-    condition: '인증된 계정으로 오늘 첫 접속',
   },
   {
     id: 'daily-record',
     label: '오늘 기록 항목 3개 저장',
-    condition: '오늘 저장한 기록에서 서로 다른 항목을 3개 이상 작성',
   },
   {
     id: 'view-record',
     label: '내 기록 1개 열어보기',
-    condition: '저장한 내 기록의 상세 화면을 1회 열기',
   },
 ];
 
@@ -103,7 +100,7 @@ export function DormHud() {
           </h2>
           <ul className={styles.questList}>
             {quests.map((quest) => (
-              <li key={quest.id} title={`완료 기준: ${quest.condition}`}>
+              <li key={quest.id}>
                 <Icon className={styles.questIcon}>
                   <circle cx="12" cy="12" r="8" />
                 </Icon>
