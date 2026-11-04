@@ -1,7 +1,7 @@
 'use client';
 
 import { OrbitControls, useGLTF } from '@react-three/drei';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useThree, type CanvasProps } from '@react-three/fiber';
 import {
   Suspense,
   useEffect,
@@ -11,11 +11,12 @@ import {
   useState,
   type ComponentRef,
 } from 'react';
-import { PerspectiveCamera } from 'three';
+import { PerspectiveCamera, WebGLRenderer } from 'three';
 
 import { BACKDROP_COLOR } from '../model/backdrop-config';
 import { createOrbitActivity } from '../model/orbit-activity';
 import { useBackdropMotion } from '../model/use-backdrop-motion';
+import { classifyRendererError } from '../model/viewer-error';
 import {
   FIELD_OF_VIEW,
   MAX_AZIMUTH_ANGLE,
@@ -29,8 +30,17 @@ import {
   prepareDormModel,
 } from '../model/view-config';
 import { DormBackdrop } from './dorm-backdrop';
-import { ViewerStatus } from './viewer-status';
 import styles from './dorm-viewer.module.css';
+
+const createDormRenderer: CanvasProps['gl'] = (defaults) => {
+  const canvas = defaults.canvas as HTMLCanvasElement;
+  try {
+    return new WebGLRenderer({ ...defaults, canvas, antialias: true, alpha: false });
+  } catch (error) {
+    // Check the actual Canvas, without allocating a separate probe context on supported devices.
+    throw classifyRendererError(error, () => canvas.getContext('webgl2'));
+  }
+};
 
 function ContextGuard() {
   const gl = useThree((state) => state.gl);
@@ -126,8 +136,7 @@ export default function DormCanvas({
       camera={{ fov: FIELD_OF_VIEW, position: [0, 0, 1] }}
       frameloop={animate ? 'always' : 'demand'}
       dpr={[1, 1.5]}
-      gl={{ antialias: true, alpha: false }}
-      fallback={<ViewerStatus kind="unsupported" />}
+      gl={createDormRenderer}
       aria-label="드래그로 회전할 수 있는 기숙사 3D 모델"
     >
       <color attach="background" args={[BACKDROP_COLOR]} />

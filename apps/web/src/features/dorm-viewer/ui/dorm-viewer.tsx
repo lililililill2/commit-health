@@ -3,20 +3,27 @@
 import dynamic from 'next/dynamic';
 import { Component, memo, useCallback, useState, type ReactNode } from 'react';
 
+import { viewerErrorKind } from '../model/viewer-error';
 import { ViewerStatus } from './viewer-status';
 import styles from './dorm-viewer.module.css';
 
 const DormCanvas = dynamic(() => import('./dorm-canvas'), { ssr: false });
 
-class ViewerBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
+type ViewerFailure = { error: unknown } | null;
 
-  static getDerivedStateFromError() {
-    return { failed: true };
+class ViewerBoundary extends Component<{ children: ReactNode }, { failure: ViewerFailure }> {
+  state: { failure: ViewerFailure } = { failure: null };
+
+  static getDerivedStateFromError(error: unknown) {
+    return { failure: { error } };
   }
 
   render() {
-    return this.state.failed ? <ViewerStatus kind="error" /> : this.props.children;
+    return this.state.failure ? (
+      <ViewerStatus kind={viewerErrorKind(this.state.failure.error)} />
+    ) : (
+      this.props.children
+    );
   }
 }
 

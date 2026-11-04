@@ -25,6 +25,7 @@ import {
 } from './backdrop-config.ts';
 import { BUILDING_WINDOW_COUNT, populateBuildingWindows } from './building-windows.ts';
 import { createOrbitActivity } from './orbit-activity.ts';
+import { WebGLUnavailableError, classifyRendererError, viewerErrorKind } from './viewer-error.ts';
 import {
   FIELD_OF_VIEW,
   FRAME_FILL,
@@ -70,6 +71,44 @@ function assertFramed(camera, size) {
         assert.ok(p.z > -1 && p.z < 1, 'The model must remain between the clipping planes');
       }
 }
+
+test('unavailable WebGL has its own status and retains the renderer failure as its cause', () => {
+  const cause = new Error('Renderer initialization failed');
+  const error = classifyRendererError(cause, () => null);
+  assert.ok(error instanceof WebGLUnavailableError);
+  assert.equal(error.cause, cause);
+  assert.equal(viewerErrorKind(error), 'unsupported');
+});
+
+test('a supported context with a renderer failure stays a generic error', () => {
+  const cause = new Error('Renderer initialization failed');
+  const context = { isContextLost: () => false };
+  const error = classifyRendererError(cause, () => context);
+  assert.equal(error, cause);
+  assert.equal(viewerErrorKind(error), 'error');
+});
+
+test('a throwing capability check preserves the original renderer failure', () => {
+  const cause = new Error('Renderer initialization failed');
+  const error = classifyRendererError(cause, () => {
+    throw new Error('Capability check failed');
+  });
+  assert.equal(error, cause);
+  assert.equal(viewerErrorKind(error), 'error');
+});
+
+test('model, context-loss and unknown errors are never classified by their message', () => {
+  for (const error of [
+    new Error('Failed to load /models/dorm.glb'),
+    new Error('The WebGL context was lost'),
+    new Error('WebGL 2 is unavailable'),
+    'WebGL 2 is unavailable',
+    null,
+    undefined,
+  ]) {
+    assert.equal(viewerErrorKind(error), 'error');
+  }
+});
 
 test('the actual GLB loads as a nonempty 3D room', () => {
   assert.ok(nodes(gltf.scene).some((node) => node.isMesh));
