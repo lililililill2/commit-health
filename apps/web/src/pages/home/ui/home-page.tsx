@@ -1,8 +1,16 @@
+'use client';
+
 import Image from 'next/image';
 
+import { useSession } from '@/entities/session';
 import { AuthControls } from '@/features/auth';
+import { DormStage } from '@/widgets/dorm-stage';
 
 export function HomePage() {
+  const session = useSession();
+
+  if (session.data) return <DormStage title="나의 기숙사" />;
+
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[#111113] px-6 py-12 text-white">
       <section aria-labelledby="login-heading" className="w-full max-w-xs text-center">
