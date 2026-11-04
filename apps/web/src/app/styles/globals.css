@@ -1,6 +1,9 @@
 @import 'pretendard/dist/web/variable/pretendardvariable.css';
 @import 'tailwindcss';
 
+@custom-variant mobile (@media (max-width: 700px));
+@custom-variant short-screen (@media (max-height: 520px));
+
 @theme {
   --font-sans: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
 }
