@@ -20,6 +20,7 @@ import { GoogleOidcService, oauthCallbackState } from './google-oidc.service.js'
 type LoginStage =
   | 'provider_discovery'
   | 'attempt_storage'
+  | 'attempt_consumption'
   | 'callback_validation'
   | 'identity_verification'
   | 'session_storage';
@@ -82,7 +83,7 @@ export class AuthController {
       const queryIndex = request.originalUrl.indexOf('?');
       const query = queryIndex < 0 ? '' : request.originalUrl.slice(queryIndex);
       const state = oauthCallbackState(query);
-      stage = 'attempt_storage';
+      stage = 'attempt_consumption';
       const legacyToken = this.cookies.read(request, this.cookies.attemptName(state));
       const attempt = await this.auth.consumeAttempt(
         legacyToken ?? this.cookies.read(request, this.cookies.attemptBrowserName),
