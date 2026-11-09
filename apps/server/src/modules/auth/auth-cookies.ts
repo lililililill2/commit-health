@@ -5,6 +5,7 @@ import type { Request, Response, CookieOptions } from 'express';
 
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
 export const OAUTH_TTL_MS = 10 * 60 * 1_000;
+export const MAX_OAUTH_ATTEMPTS = 8;
 
 @Injectable()
 export class AuthCookies {
@@ -16,8 +17,12 @@ export class AuthCookies {
   get sessionName(): string {
     return `${this.secure ? '__Host-' : ''}commit_health_session`;
   }
-  get attemptName(): string {
-    return `${this.secure ? '__Host-' : ''}commit_health_oauth`;
+  get attemptBrowserName(): string {
+    return `${this.secure ? '__Host-' : ''}commit_health_oauth_browser`;
+  }
+  // Accept in-flight requests from the previous release until their cookies expire.
+  attemptName(state: string): string {
+    return `${this.secure ? '__Host-' : ''}commit_health_oauth_${state}`;
   }
 
   read(request: Request, name: string): string | undefined {
@@ -40,10 +45,13 @@ export class AuthCookies {
   clearSession(response: Response): void {
     response.clearCookie(this.sessionName, this.options());
   }
-  setAttempt(response: Response, token: string): void {
-    response.cookie(this.attemptName, token, { ...this.options(true), maxAge: OAUTH_TTL_MS });
+  setAttemptBrowser(response: Response, token: string): void {
+    response.cookie(this.attemptBrowserName, token, {
+      ...this.options(true),
+      maxAge: OAUTH_TTL_MS,
+    });
   }
-  clearAttempt(response: Response): void {
-    response.clearCookie(this.attemptName, this.options(true));
+  clearAttempt(response: Response, state: string): void {
+    response.clearCookie(this.attemptName(state), this.options(true));
   }
 }

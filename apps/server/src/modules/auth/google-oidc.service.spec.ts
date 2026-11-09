@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import type { Configuration } from 'openid-client';
 
-import { GoogleOidcService } from './google-oidc.service.js';
+import { GoogleOidcService, oauthCallbackState } from './google-oidc.service.js';
 import { TestOidcProvider, TEST_CALLBACK } from '../../../test/helpers/oidc-provider.js';
 
 class LocalGoogleService extends GoogleOidcService {
@@ -85,5 +85,15 @@ describe('Google OIDC verification with signed local provider responses', () => 
     await expect(new GoogleOidcService(new ConfigService()).begin()).rejects.toThrow(
       'not configured',
     );
+  });
+
+  it.each([
+    '',
+    '?state=short',
+    `?state=${'a'.repeat(43)}&state=${'b'.repeat(43)}`,
+    `?state=${'%'.repeat(43)}`,
+    `?state=${'a'.repeat(43)}&extra=${'x'.repeat(8_192)}`,
+  ])('rejects malformed callback state before selecting a browser cookie %#', (query) => {
+    expect(() => oauthCallbackState(query)).toThrow('Invalid OAuth response');
   });
 });

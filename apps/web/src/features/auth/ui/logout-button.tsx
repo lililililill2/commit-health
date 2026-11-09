@@ -4,13 +4,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { useRouter } from 'next/navigation';
 
-import { getSession, sessionQueryKey, useSession } from '@/entities/session';
+import { getSession, sessionQueryKey } from '@/entities/session';
 import { apiClient } from '@/shared/api';
 
-import { GoogleLoginButton } from './google-login-button';
-
-export function AuthControls() {
-  const session = useSession();
+export function LogoutButton() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const logout = useMutation({
@@ -31,26 +28,6 @@ export function AuthControls() {
       router.refresh();
     },
   });
-
-  if (session.isPending)
-    return (
-      <p role="status" className="py-3 text-sm">
-        로그인 상태를 확인하고 있습니다…
-      </p>
-    );
-  if (session.isError)
-    return (
-      <div className="space-y-4">
-        <GoogleLoginButton />
-        <div role="alert" className="text-sm">
-          <p>로그인 상태를 확인하지 못했습니다.</p>
-          <button type="button" className="mt-2 underline" onClick={() => void session.refetch()}>
-            다시 확인
-          </button>
-        </div>
-      </div>
-    );
-  if (!session.data) return <GoogleLoginButton />;
 
   return (
     <div className="space-y-3">

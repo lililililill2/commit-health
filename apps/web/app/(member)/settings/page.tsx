@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
 
-import { MenuPlaceholderPage } from '@/pages/menu-placeholder';
+import { SettingsPage } from '@/pages/settings';
 
 export const metadata: Metadata = { title: '설정 | Commit Health' };
 
-export default function SettingsPage() {
-  return <MenuPlaceholderPage title="설정" />;
-}
+export default SettingsPage;
