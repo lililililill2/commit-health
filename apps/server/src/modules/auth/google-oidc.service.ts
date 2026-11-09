@@ -10,6 +10,14 @@ export interface OAuthChecks {
   codeVerifier: string;
 }
 
+export function oauthCallbackState(query: string): string {
+  if (query.length > 8_192) throw new UnauthorizedException('Invalid OAuth response');
+  const states = new URLSearchParams(query).getAll('state');
+  if (states.length !== 1 || !/^[A-Za-z0-9_-]{43}$/.test(states[0]))
+    throw new UnauthorizedException('Invalid OAuth response');
+  return states[0];
+}
+
 @Injectable()
 export class GoogleOidcService {
   private configuration?: Promise<oidc.Configuration>;
@@ -57,12 +65,10 @@ export class GoogleOidcService {
   }
 
   async complete(query: string, checks: OAuthChecks): Promise<string> {
-    const url = new URL(this.config.getOrThrow<string>('GOOGLE_CALLBACK_URL'));
-    if (query.length > 8_192) throw new UnauthorizedException('Invalid OAuth response');
-    url.search = query;
-    const states = url.searchParams.getAll('state');
-    if (states.length !== 1 || !equalToken(states[0], checks.state))
+    if (!equalToken(oauthCallbackState(query), checks.state))
       throw new UnauthorizedException('Invalid OAuth response');
+    const url = new URL(this.config.getOrThrow<string>('GOOGLE_CALLBACK_URL'));
+    url.search = query;
     const tokens = await oidc.authorizationCodeGrant(await this.getConfiguration(), url, {
       expectedState: checks.state,
       expectedNonce: checks.nonce,

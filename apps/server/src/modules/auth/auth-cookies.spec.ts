@@ -15,13 +15,17 @@ describe('authentication cookies', () => {
           writes.push({ name, options }),
       } as unknown as Response;
       cookies.setSession(response, 'test-token');
-      cookies.setAttempt(response, 'test-attempt');
+      cookies.setAttemptBrowser(response, 'test-attempt');
       expect(writes[0]).toMatchObject({
         name: '__Host-commit_health_session',
         options: { httpOnly: true, secure: true, path: '/', sameSite },
       });
       expect(writes[0].options).not.toHaveProperty('domain');
-      expect(writes[1]).toMatchObject({ options: { sameSite: 'lax', secure: true } });
+      expect(writes[1]).toMatchObject({
+        name: '__Host-commit_health_oauth_browser',
+        options: { sameSite: 'lax', secure: true, httpOnly: true, path: '/' },
+      });
+      expect(writes[1].options).not.toHaveProperty('domain');
     },
   );
 });

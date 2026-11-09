@@ -30,7 +30,6 @@ import {
   prepareDormModel,
 } from '../model/view-config';
 import { DormBackdrop } from './dorm-backdrop';
-import styles from './dorm-viewer.module.css';
 
 const createDormRenderer: CanvasProps['gl'] = (defaults) => {
   const canvas = defaults.canvas as HTMLCanvasElement;
@@ -132,7 +131,7 @@ export default function DormCanvas({
   const animate = useBackdropMotion();
   return (
     <Canvas
-      className={styles.canvas}
+      className="relative z-1"
       camera={{ fov: FIELD_OF_VIEW, position: [0, 0, 1] }}
       frameloop={animate ? 'always' : 'demand'}
       dpr={[1, 1.5]}
