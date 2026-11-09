@@ -14,7 +14,7 @@ import type { Request, Response } from 'express';
 
 import { Public, type AuthenticatedRequest } from '../../auth/auth-context.js';
 import { AuthCookies } from './auth-cookies.js';
-import { AuthService } from './auth.service.js';
+import { AuthService, randomToken } from './auth.service.js';
 import { GoogleOidcService, oauthCallbackState } from './google-oidc.service.js';
 
 type LoginStage =
@@ -56,14 +56,16 @@ export class AuthController {
 
   @Public()
   @Get('google')
-  async googleLogin(@Res() response: Response): Promise<void> {
+  async googleLogin(@Req() request: Request, @Res() response: Response): Promise<void> {
     this.privateResponse(response);
     let stage: LoginStage = 'provider_discovery';
     try {
       const start = await this.google.begin();
       stage = 'attempt_storage';
-      const attempt = await this.auth.createAttempt(start.state, start.nonce, start.codeVerifier);
-      this.cookies.setAttempt(response, attempt, start.state);
+      const browserToken =
+        this.cookies.read(request, this.cookies.attemptBrowserName) ?? randomToken();
+      await this.auth.createAttempt(start.state, start.nonce, start.codeVerifier, browserToken);
+      this.cookies.setAttemptBrowser(response, browserToken);
       response.redirect(303, start.url);
     } catch (error) {
       this.reportFailure(stage, error);
@@ -81,11 +83,12 @@ export class AuthController {
       const query = queryIndex < 0 ? '' : request.originalUrl.slice(queryIndex);
       const state = oauthCallbackState(query);
       stage = 'attempt_storage';
+      const legacyToken = this.cookies.read(request, this.cookies.attemptName(state));
       const attempt = await this.auth.consumeAttempt(
-        this.cookies.read(request, this.cookies.attemptName(state)),
+        legacyToken ?? this.cookies.read(request, this.cookies.attemptBrowserName),
         state,
       );
-      this.cookies.clearAttempt(response, state);
+      if (legacyToken) this.cookies.clearAttempt(response, state);
       stage = 'identity_verification';
       const sub = await this.google.complete(query, attempt);
       stage = 'session_storage';

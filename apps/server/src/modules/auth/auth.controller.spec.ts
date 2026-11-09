@@ -23,6 +23,7 @@ describe('OAuth failure isolation and logging', () => {
   function response() {
     return {
       setHeader: jest.fn(),
+      cookie: jest.fn(),
       clearCookie: jest.fn(),
       redirect: jest.fn(),
     };
@@ -40,7 +41,7 @@ describe('OAuth failure isolation and logging', () => {
       config,
     );
     const res = response();
-    await controller.googleLogin(res as unknown as Response);
+    await controller.googleLogin({ headers: {} } as Request, res as unknown as Response);
     expect(res.clearCookie).not.toHaveBeenCalled();
     expect(res.redirect).toHaveBeenCalledWith(303, 'http://localhost:3000/auth/error');
     expect(warn).toHaveBeenCalledWith(
@@ -49,26 +50,72 @@ describe('OAuth failure isolation and logging', () => {
     expect(JSON.stringify(warn.mock.calls)).not.toContain(detail);
   });
 
-  it('clears only the consumed request cookie and never logs callback codes or token values', async () => {
-    const state = randomToken();
-    const otherState = randomToken();
-    const token = randomToken();
-    const code = 'private-authorization-code';
-    const detail = 'private-token-verification-error';
-    const attempt = {
-      tokenHash: hashToken(token),
-      state,
+  it.each(['legacy', 'shared'])(
+    'preserves other login attempts and logs no secrets for a %s cookie',
+    async (mode) => {
+      const state = randomToken();
+      const otherState = randomToken();
+      const token = randomToken();
+      const code = 'private-authorization-code';
+      const detail = 'private-token-verification-error';
+      const attempt = {
+        tokenHash: hashToken(token),
+        state,
+        nonce: randomToken(),
+        codeVerifier: randomToken(),
+        expiresAt: new Date(Date.now() + 60_000),
+      };
+      const auth = {
+        consumeAttempt: jest.fn<AuthService['consumeAttempt']>().mockResolvedValue(attempt),
+        login: jest.fn<AuthService['login']>(),
+      };
+      const google = {
+        complete: jest.fn<GoogleOidcService['complete']>().mockRejectedValue(new Error(detail)),
+      };
+      const controller = new AuthController(
+        auth as unknown as AuthService,
+        google as unknown as GoogleOidcService,
+        cookies,
+        config,
+      );
+      const res = response();
+      await controller.googleCallback(
+        {
+          headers: {
+            cookie:
+              mode === 'legacy'
+                ? `${cookies.attemptName(state)}=${token}; ${cookies.attemptName(otherState)}=${randomToken()}`
+                : `${cookies.attemptBrowserName}=${token}`,
+          },
+          originalUrl: `/api/auth/google/callback?state=${state}&code=${code}`,
+        } as Request,
+        res as unknown as Response,
+      );
+      expect(auth.consumeAttempt).toHaveBeenCalledWith(token, state);
+      expect(res.clearCookie).toHaveBeenCalledTimes(mode === 'legacy' ? 1 : 0);
+      if (mode === 'legacy')
+        expect(res.clearCookie.mock.calls[0][0]).toBe(cookies.attemptName(state));
+      expect(auth.login).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        'Google login failed: stage=identity_verification, reason=unexpected_failure',
+      );
+      for (const value of [code, token, state, detail, attempt.nonce, attempt.codeVerifier])
+        expect(JSON.stringify(warn.mock.calls)).not.toContain(value);
+    },
+  );
+
+  it('reuses one browser cookie when starting another login', async () => {
+    const browserToken = randomToken();
+    const start = {
+      state: randomToken(),
       nonce: randomToken(),
       codeVerifier: randomToken(),
-      expiresAt: new Date(Date.now() + 60_000),
+      url: 'https://accounts.example/authorize',
     };
     const auth = {
-      consumeAttempt: jest.fn<AuthService['consumeAttempt']>().mockResolvedValue(attempt),
-      login: jest.fn<AuthService['login']>(),
+      createAttempt: jest.fn<AuthService['createAttempt']>().mockResolvedValue(undefined),
     };
-    const google = {
-      complete: jest.fn<GoogleOidcService['complete']>().mockRejectedValue(new Error(detail)),
-    };
+    const google = { begin: jest.fn<GoogleOidcService['begin']>().mockResolvedValue(start) };
     const controller = new AuthController(
       auth as unknown as AuthService,
       google as unknown as GoogleOidcService,
@@ -76,23 +123,21 @@ describe('OAuth failure isolation and logging', () => {
       config,
     );
     const res = response();
-    await controller.googleCallback(
-      {
-        headers: {
-          cookie: `${cookies.attemptName(state)}=${token}; ${cookies.attemptName(otherState)}=${randomToken()}`,
-        },
-        originalUrl: `/api/auth/google/callback?state=${state}&code=${code}`,
-      } as Request,
+    await controller.googleLogin(
+      { headers: { cookie: `${cookies.attemptBrowserName}=${browserToken}` } } as Request,
       res as unknown as Response,
     );
-    expect(auth.consumeAttempt).toHaveBeenCalledWith(token, state);
-    expect(res.clearCookie).toHaveBeenCalledTimes(1);
-    expect(res.clearCookie.mock.calls[0][0]).toBe(cookies.attemptName(state));
-    expect(auth.login).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledWith(
-      'Google login failed: stage=identity_verification, reason=unexpected_failure',
+    expect(auth.createAttempt).toHaveBeenCalledWith(
+      start.state,
+      start.nonce,
+      start.codeVerifier,
+      browserToken,
     );
-    for (const value of [code, token, state, detail, attempt.nonce, attempt.codeVerifier])
-      expect(JSON.stringify(warn.mock.calls)).not.toContain(value);
+    expect(res.cookie).toHaveBeenCalledTimes(1);
+    expect(res.cookie.mock.calls[0].slice(0, 2)).toEqual([
+      cookies.attemptBrowserName,
+      browserToken,
+    ]);
+    expect(res.redirect).toHaveBeenCalledWith(303, start.url);
   });
 });

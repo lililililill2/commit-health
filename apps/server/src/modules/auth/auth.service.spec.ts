@@ -9,7 +9,7 @@ describe('OAuth attempt consumption', () => {
   const token = randomToken();
   const state = randomToken();
   let attempt: OAuthAttempt;
-  const findUnique = jest.fn<(query: unknown) => Promise<OAuthAttempt | null>>();
+  const findFirst = jest.fn<(query: unknown) => Promise<OAuthAttempt | null>>();
   const deleteMany = jest.fn<(query: unknown) => Promise<{ count: number }>>();
   let service: AuthService;
 
@@ -22,10 +22,10 @@ describe('OAuth attempt consumption', () => {
       codeVerifier: randomToken(),
       expiresAt: new Date(Date.now() + 60_000),
     };
-    findUnique.mockResolvedValue(attempt);
+    findFirst.mockResolvedValue(attempt);
     deleteMany.mockResolvedValue({ count: 1 });
     service = new AuthService({
-      client: { oAuthAttempt: { findUnique, deleteMany } },
+      client: { oAuthAttempt: { findFirst, deleteMany } },
     } as unknown as PrismaService);
   });
 
@@ -38,8 +38,8 @@ describe('OAuth attempt consumption', () => {
 
   it('rejects missing tokens and expired attempts', async () => {
     await expect(service.consumeAttempt(undefined, state)).rejects.toThrow(UnauthorizedException);
-    expect(findUnique).not.toHaveBeenCalled();
-    findUnique.mockResolvedValue({ ...attempt, expiresAt: new Date(0) });
+    expect(findFirst).not.toHaveBeenCalled();
+    findFirst.mockResolvedValue({ ...attempt, expiresAt: new Date(0) });
     await expect(service.consumeAttempt(token, state)).rejects.toThrow(UnauthorizedException);
     expect(deleteMany).not.toHaveBeenCalled();
   });
