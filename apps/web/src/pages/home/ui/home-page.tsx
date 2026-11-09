@@ -3,7 +3,7 @@
 import Image from 'next/image';
 
 import { useSession } from '@/entities/session';
-import { AuthControls } from '@/features/auth';
+import { GoogleLoginButton } from '@/features/auth';
 import { DormStage } from '@/widgets/dorm-stage';
 
 export function HomePage() {
@@ -15,7 +15,7 @@ export function HomePage() {
     <main className="flex min-h-dvh items-center justify-center bg-[#111113] px-6 py-12 text-white">
       <section aria-labelledby="login-heading" className="w-full max-w-xs text-center">
         <h1 id="login-heading" className="sr-only">
-          Commit Health 로그인
+          {session.isPending ? 'Commit Health' : 'Commit Health 로그인'}
         </h1>
         <div className="flex justify-center">
           <Image
@@ -27,8 +27,18 @@ export function HomePage() {
             preload
           />
         </div>
-        <div className="mt-12 min-h-12">
-          <AuthControls />
+        <div className="mt-12 flex min-h-12 items-center justify-center">
+          {session.isPending ? (
+            <div role="status">
+              <span
+                aria-hidden="true"
+                className="block size-7 animate-spin rounded-full border-2 border-white/20 border-t-white/80 motion-reduce:animate-none"
+              />
+              <span className="sr-only">화면을 불러오는 중</span>
+            </div>
+          ) : (
+            <GoogleLoginButton />
+          )}
         </div>
       </section>
     </main>

@@ -1,14 +1,33 @@
-import { Controller, Get, Post, Req, Res, HttpCode } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Req,
+  Res,
+  HttpCode,
+  Logger,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 
 import { Public, type AuthenticatedRequest } from '../../auth/auth-context.js';
 import { AuthCookies } from './auth-cookies.js';
 import { AuthService } from './auth.service.js';
-import { GoogleOidcService } from './google-oidc.service.js';
+import { GoogleOidcService, oauthCallbackState } from './google-oidc.service.js';
+
+type LoginStage =
+  | 'provider_discovery'
+  | 'attempt_storage'
+  | 'callback_validation'
+  | 'identity_verification'
+  | 'session_storage';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly auth: AuthService,
     private readonly google: GoogleOidcService,
@@ -24,22 +43,30 @@ export class AuthController {
     return new URL(path, this.config.getOrThrow<string>('FRONTEND_URL')).href;
   }
 
+  private reportFailure(stage: LoginStage, error: unknown): void {
+    const reason =
+      error instanceof UnauthorizedException
+        ? 'invalid_response'
+        : error instanceof ServiceUnavailableException
+          ? 'unavailable'
+          : 'unexpected_failure';
+    // Log only allowlisted stages/categories, never exception messages, URLs, or credentials.
+    this.logger.warn(`Google login failed: stage=${stage}, reason=${reason}`);
+  }
+
   @Public()
   @Get('google')
-  async googleLogin(@Req() request: Request, @Res() response: Response): Promise<void> {
+  async googleLogin(@Res() response: Response): Promise<void> {
     this.privateResponse(response);
+    let stage: LoginStage = 'provider_discovery';
     try {
       const start = await this.google.begin();
-      const attempt = await this.auth.createAttempt(
-        start.state,
-        start.nonce,
-        start.codeVerifier,
-        this.cookies.read(request, this.cookies.attemptName),
-      );
-      this.cookies.setAttempt(response, attempt);
+      stage = 'attempt_storage';
+      const attempt = await this.auth.createAttempt(start.state, start.nonce, start.codeVerifier);
+      this.cookies.setAttempt(response, attempt, start.state);
       response.redirect(303, start.url);
-    } catch {
-      this.cookies.clearAttempt(response);
+    } catch (error) {
+      this.reportFailure(stage, error);
       response.redirect(303, this.frontend('/auth/error'));
     }
   }
@@ -48,24 +75,28 @@ export class AuthController {
   @Get('google/callback')
   async googleCallback(@Req() request: Request, @Res() response: Response): Promise<void> {
     this.privateResponse(response);
-    this.cookies.clearAttempt(response);
+    let stage: LoginStage = 'callback_validation';
     try {
-      const attempt = await this.auth.consumeAttempt(
-        this.cookies.read(request, this.cookies.attemptName),
-      );
       const queryIndex = request.originalUrl.indexOf('?');
-      const sub = await this.google.complete(
-        queryIndex < 0 ? '' : request.originalUrl.slice(queryIndex),
-        attempt,
+      const query = queryIndex < 0 ? '' : request.originalUrl.slice(queryIndex);
+      const state = oauthCallbackState(query);
+      stage = 'attempt_storage';
+      const attempt = await this.auth.consumeAttempt(
+        this.cookies.read(request, this.cookies.attemptName(state)),
+        state,
       );
+      this.cookies.clearAttempt(response, state);
+      stage = 'identity_verification';
+      const sub = await this.google.complete(query, attempt);
+      stage = 'session_storage';
       const token = await this.auth.login(
         sub,
         this.cookies.read(request, this.cookies.sessionName),
       );
       this.cookies.setSession(response, token);
       response.redirect(303, this.frontend('/'));
-    } catch {
-      // Never log the callback URL, provider errors, authorization code, or tokens.
+    } catch (error) {
+      this.reportFailure(stage, error);
       response.redirect(303, this.frontend('/auth/error'));
     }
   }

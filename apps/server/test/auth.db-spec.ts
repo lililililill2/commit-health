@@ -11,6 +11,7 @@ import { configureApp } from '../src/config/configure-app.js';
 import { CurrentUser, type SessionUser } from '../src/auth/auth-context.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { AuthService, hashToken } from '../src/modules/auth/auth.service.js';
+import { AuthCookies } from '../src/modules/auth/auth-cookies.js';
 import { GoogleOidcService } from '../src/modules/auth/google-oidc.service.js';
 import { getTestDatabaseUrl } from './helpers/test-database.js';
 import {
@@ -105,7 +106,9 @@ describe('authentication with real PostgreSQL and a signed local OIDC provider',
 
   async function start(agent: Agent) {
     const response = await agent.get('/api/auth/google').expect(303);
-    attempts.add(hashToken(cookie(response, 'commit_health_oauth').split('=')[1]));
+    const state = new URL(response.headers.location).searchParams.get('state')!;
+    const name = app.get(AuthCookies).attemptName(state);
+    attempts.add(hashToken(cookie(response, name).split('=')[1]));
     return response.headers.location;
   }
   async function login(agent: Agent, sub: string) {
@@ -159,6 +162,77 @@ describe('authentication with real PostgreSQL and a signed local OIDC provider',
   it('prevents duplicate users under concurrent login', async () => {
     const sub = newSub();
     await Promise.all([1, 2, 3].map(() => app.get(AuthService).login(sub)));
+    expect(await prisma.client.user.count({ where: { googleSub: sub } })).toBe(1);
+  });
+
+  it.each([false, true])(
+    'completes two login tabs independently with newestFirst=%s',
+    async (newestFirst) => {
+      const agent = request.agent(app.getHttpServer());
+      const sub = newSub();
+      const callbacks = [
+        provider.callback(await start(agent), sub),
+        provider.callback(await start(agent), sub),
+      ];
+      if (newestFirst) callbacks.reverse();
+      for (const callback of callbacks) {
+        const result = await agent
+          .get(`${callback.pathname}${callback.search}`)
+          .expect(303)
+          .expect('Location', 'http://localhost:3000/');
+        const cleared = (result.headers['set-cookie'] as unknown as string[]).filter((header) =>
+          header.startsWith('commit_health_oauth_'),
+        );
+        expect(cleared).toHaveLength(1);
+        expect(
+          cleared[0].startsWith(
+            app.get(AuthCookies).attemptName(callback.searchParams.get('state')!),
+          ),
+        ).toBe(true);
+      }
+      await agent.get('/api/auth/me').expect(200);
+      expect(await prisma.client.user.count({ where: { googleSub: sub } })).toBe(1);
+    },
+  );
+
+  it('does not let an expired old callback invalidate a newer login', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const sub = newSub();
+    const old = provider.callback(await start(agent), sub);
+    const latest = provider.callback(await start(agent), sub);
+    await prisma.client.oAuthAttempt.updateMany({
+      where: { state: old.searchParams.get('state')! },
+      data: { expiresAt: new Date(0) },
+    });
+    await agent
+      .get(`${old.pathname}${old.search}`)
+      .expect(303)
+      .expect('Location', 'http://localhost:3000/auth/error');
+    expect(
+      await prisma.client.oAuthAttempt.count({
+        where: { state: latest.searchParams.get('state')! },
+      }),
+    ).toBe(1);
+    await agent
+      .get(`${latest.pathname}${latest.search}`)
+      .expect(303)
+      .expect('Location', 'http://localhost:3000/');
+  });
+
+  it('rejects concurrent callback replay before exchanging the same code twice', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const sub = newSub();
+    const callback = provider.callback(await start(agent), sub);
+    const before = provider.tokenRequests;
+    const results = await Promise.all([
+      agent.get(`${callback.pathname}${callback.search}`),
+      agent.get(`${callback.pathname}${callback.search}`),
+    ]);
+    expect(results.map((result) => result.headers.location).sort()).toEqual([
+      'http://localhost:3000/',
+      'http://localhost:3000/auth/error',
+    ]);
+    expect(provider.tokenRequests).toBe(before + 1);
     expect(await prisma.client.user.count({ where: { googleSub: sub } })).toBe(1);
   });
 

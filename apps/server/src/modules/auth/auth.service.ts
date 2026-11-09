@@ -18,20 +18,10 @@ export function equalToken(actual: string, expected: string): boolean {
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createAttempt(
-    state: string,
-    nonce: string,
-    codeVerifier: string,
-    previous?: string,
-  ): Promise<string> {
+  async createAttempt(state: string, nonce: string, codeVerifier: string): Promise<string> {
     const token = randomToken();
     await this.prisma.client.oAuthAttempt.deleteMany({
-      where: {
-        OR: [
-          { expiresAt: { lte: new Date() } },
-          ...(previous ? [{ tokenHash: hashToken(previous) }] : []),
-        ],
-      },
+      where: { expiresAt: { lte: new Date() } },
     });
     await this.prisma.client.oAuthAttempt.create({
       data: {
@@ -45,13 +35,16 @@ export class AuthService {
     return token;
   }
 
-  async consumeAttempt(token?: string) {
-    if (!token) throw new UnauthorizedException('Invalid OAuth response');
+  async consumeAttempt(token: string | undefined, state: string) {
+    if (!token || !state) throw new UnauthorizedException('Invalid OAuth response');
     const tokenHash = hashToken(token);
     const attempt = await this.prisma.client.oAuthAttempt.findUnique({ where: { tokenHash } });
-    const removed = await this.prisma.client.oAuthAttempt.deleteMany({ where: { tokenHash } });
-    if (!attempt || removed.count !== 1 || attempt.expiresAt.getTime() <= Date.now())
+    if (!attempt || !equalToken(state, attempt.state) || attempt.expiresAt.getTime() <= Date.now())
       throw new UnauthorizedException('Invalid OAuth response');
+    const removed = await this.prisma.client.oAuthAttempt.deleteMany({
+      where: { tokenHash, state: attempt.state, expiresAt: { gt: new Date() } },
+    });
+    if (removed.count !== 1) throw new UnauthorizedException('Invalid OAuth response');
     return attempt;
   }
 
