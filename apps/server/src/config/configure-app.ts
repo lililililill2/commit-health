@@ -6,11 +6,14 @@ export function configureApp(app: INestApplication): void {
   const config = app.get(ConfigService);
 
   app.setGlobalPrefix('api');
-  app.use('/api/auth', (_request: Request, response: Response, next: NextFunction) => {
-    response.setHeader('Cache-Control', 'no-store');
-    response.setHeader('Referrer-Policy', 'no-referrer');
-    next();
-  });
+  app.use(
+    ['/api/auth', '/api/sleep', '/api/activity'],
+    (_request: Request, response: Response, next: NextFunction) => {
+      response.setHeader('Cache-Control', 'no-store');
+      response.setHeader('Referrer-Policy', 'no-referrer');
+      next();
+    },
+  );
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

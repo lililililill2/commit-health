@@ -9,11 +9,14 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid()) @db.Uuid
-  googleSub String    @unique @db.VarChar(255)
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
-  sessions  Session[]
+  id               String            @id @default(uuid()) @db.Uuid
+  googleSub        String            @unique @db.VarChar(255)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+  sessions         Session[]
+  sleepRecords     SleepRecord[]
+  conditionRecords ConditionRecord[]
+  activitySessions ActivitySession[]
 }
 
 model Session {
@@ -36,4 +39,54 @@ model OAuthAttempt {
   expiresAt    DateTime @db.Timestamptz(3)
 
   @@index([expiresAt])
+}
+
+model SleepRecord {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  recordDate      DateTime @db.Date
+  bedtime         DateTime @db.Timestamptz(3)
+  wakeTime        DateTime @db.Timestamptz(3)
+  durationMinutes Int
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recordDate])
+}
+
+model ConditionRecord {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  recordDate DateTime @db.Date
+  score      Int
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recordDate])
+}
+
+enum ActivityKind {
+  FOCUS
+  MEDITATION
+}
+
+enum ActivityStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model ActivitySession {
+  id              String         @id @default(uuid()) @db.Uuid
+  userId          String         @db.Uuid
+  recordDate      DateTime       @db.Date
+  kind            ActivityKind
+  status          ActivityStatus @default(RUNNING)
+  startedAt       DateTime       @db.Timestamptz(3)
+  lastSeenAt      DateTime       @db.Timestamptz(3)
+  endedAt         DateTime?      @db.Timestamptz(3)
+  durationSeconds Int            @default(0)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordDate, status])
 }
