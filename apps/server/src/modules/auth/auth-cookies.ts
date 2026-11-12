@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { parseCookie } from 'cookie';
 import type { Request, Response, CookieOptions } from 'express';
 
-export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
+export const SESSION_TTL_MS = 24 * 60 * 60 * 1_000;
 export const OAUTH_TTL_MS = 10 * 60 * 1_000;
 export const MAX_OAUTH_ATTEMPTS = 8;
 
