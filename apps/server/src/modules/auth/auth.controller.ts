@@ -121,4 +121,16 @@ export class AuthController {
     await this.auth.logout(request.auth!.tokenHash);
     this.cookies.clearSession(response);
   }
+
+  @Post('activity')
+  @HttpCode(204)
+  async activity(
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    this.privateResponse(response);
+    if (!(await this.auth.renewSession(request.auth!.tokenHash)))
+      throw new UnauthorizedException('로그인이 필요합니다.');
+    this.cookies.setSession(response, this.cookies.read(request, this.cookies.sessionName)!);
+  }
 }

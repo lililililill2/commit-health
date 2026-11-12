@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import { AuthCookies } from './auth-cookies.js';
@@ -18,7 +19,7 @@ describe('authentication cookies', () => {
       cookies.setAttemptBrowser(response, 'test-attempt');
       expect(writes[0]).toMatchObject({
         name: '__Host-commit_health_session',
-        options: { httpOnly: true, secure: true, path: '/', sameSite },
+        options: { httpOnly: true, secure: true, path: '/', sameSite, maxAge: 86_400_000 },
       });
       expect(writes[0].options).not.toHaveProperty('domain');
       expect(writes[1]).toMatchObject({
