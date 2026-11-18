@@ -118,6 +118,15 @@ export class AuthService {
     return { tokenHash, csrfToken: session.csrfToken, user: session.user };
   }
 
+  async renewSession(tokenHash: string): Promise<boolean> {
+    const now = Date.now();
+    const renewed = await this.prisma.client.session.updateMany({
+      where: { tokenHash, expiresAt: { gt: new Date(now) } },
+      data: { expiresAt: new Date(now + SESSION_TTL_MS) },
+    });
+    return renewed.count === 1;
+  }
+
   async logout(tokenHash: string): Promise<void> {
     await this.prisma.client.session.deleteMany({ where: { tokenHash } });
   }

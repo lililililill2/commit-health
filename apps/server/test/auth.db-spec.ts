@@ -144,6 +144,15 @@ describe('authentication with real PostgreSQL and a signed local OIDC provider',
     }
     await agent.get('/api/auth/me').expect(200);
     const setCookies = loggedIn.response.headers['set-cookie'] as unknown as string[];
+    const sessionHeader = setCookies.find((value) => value.startsWith('commit_health_session='));
+    const maxAge = Number(sessionHeader?.match(/(?:^|;\s*)Max-Age=(\d+)(?:;|$)/)?.[1]);
+    expect(maxAge).toBe(86_400);
+    const storedSession = await prisma.client.session.findUniqueOrThrow({
+      where: { tokenHash: hashToken(loggedIn.sessionCookie.split('=')[1]) },
+      select: { createdAt: true, expiresAt: true },
+    });
+    const lifetime = storedSession.expiresAt.getTime() - storedSession.createdAt.getTime();
+    expect(Math.abs(lifetime - 86_400_000)).toBeLessThan(10_000);
     expect(
       setCookies.some((value) => value.includes('HttpOnly') && value.includes('SameSite=Lax')),
     ).toBe(true);
@@ -357,21 +366,80 @@ describe('authentication with real PostgreSQL and a signed local OIDC provider',
       .set('X-CSRF-Token', csrf)
       .expect(204);
     await request(app.getHttpServer()).get('/api/auth/me').set('Cookie', sessionCookie).expect(401);
+    await request(app.getHttpServer())
+      .post('/api/auth/activity')
+      .set('Cookie', sessionCookie)
+      .set('Origin', 'http://localhost:3000')
+      .set('X-CSRF-Token', csrf)
+      .expect(401);
   });
 
   it('rejects an expired session', async () => {
     const agent = request.agent(app.getHttpServer());
     const { sessionCookie } = await login(agent, newSub());
+    const me = await agent.get('/api/auth/me').expect(200);
+    const csrf = (me.body as { csrfToken: string }).csrfToken;
     await prisma.client.session.update({
       where: { tokenHash: hashToken(sessionCookie.split('=')[1]) },
       data: { expiresAt: new Date(0) },
     });
+    const renewal = await agent
+      .post('/api/auth/activity')
+      .set('Origin', 'http://localhost:3000')
+      .set('X-CSRF-Token', csrf)
+      .expect(401);
+    expect(renewal.headers['set-cookie'] === undefined).toBe(true);
     await agent.get('/api/auth/me').expect(401);
+  });
+
+  it('renews only authenticated user activity and transitions legacy sessions to a 24-hour idle window', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const { sessionCookie } = await login(agent, newSub());
+    const tokenHash = hashToken(sessionCookie.split('=')[1]);
+    await prisma.client.session.update({
+      where: { tokenHash },
+      data: {
+        createdAt: new Date(Date.now() - 3 * 86_400_000),
+        expiresAt: new Date(Date.now() + 6 * 86_400_000),
+      },
+    });
+    const before = await prisma.client.session.findUniqueOrThrow({ where: { tokenHash } });
+    const me = await agent.get('/api/auth/me').expect(200);
+    const csrf = (me.body as { csrfToken: string }).csrfToken;
+    await agent.post('/api/auth/activity').expect(403);
+    await agent
+      .post('/api/auth/activity')
+      .set('Origin', 'https://example.com')
+      .set('X-CSRF-Token', csrf)
+      .expect(403);
+    const unchanged = await prisma.client.session.findUniqueOrThrow({ where: { tokenHash } });
+    expect(unchanged.expiresAt.getTime()).toBe(before.expiresAt.getTime());
+
+    const started = Date.now();
+    const renewal = await agent
+      .post('/api/auth/activity')
+      .set('Origin', 'http://localhost:3000')
+      .set('X-CSRF-Token', csrf)
+      .expect(204);
+    const renewed = await prisma.client.session.findUniqueOrThrow({ where: { tokenHash } });
+    expect(renewed.createdAt.getTime()).toBe(before.createdAt.getTime());
+    expect(renewed.expiresAt.getTime()).toBeGreaterThanOrEqual(started + 86_400_000);
+    expect(renewed.expiresAt.getTime()).toBeLessThanOrEqual(Date.now() + 86_400_000);
+    const header = (renewal.headers['set-cookie'] as unknown as string[]).find((value) =>
+      value.startsWith('commit_health_session='),
+    );
+    expect(Number(header?.match(/(?:^|;\s*)Max-Age=(\d+)(?:;|$)/)?.[1])).toBe(86_400);
+    await agent.get('/api/auth/me').expect(200);
+    const afterPassiveCheck = await prisma.client.session.findUniqueOrThrow({
+      where: { tokenHash },
+    });
+    expect(afterPassiveCheck.expiresAt.getTime()).toBe(renewed.expiresAt.getTime());
   });
 
   it('blocks unauthenticated endpoints while keeping Health public', async () => {
     await request(app.getHttpServer()).get('/api/auth/me').expect(401);
     await request(app.getHttpServer()).post('/api/auth/logout').expect(401);
+    await request(app.getHttpServer()).post('/api/auth/activity').expect(401);
     await request(app.getHttpServer()).get('/api/_auth-test/identity').expect(401);
     await request(app.getHttpServer()).get('/api/health').expect(200);
   });

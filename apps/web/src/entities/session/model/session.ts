@@ -5,7 +5,7 @@ import { isAxiosError } from 'axios';
 
 import { apiClient } from '@/shared/api';
 
-interface Session {
+export interface Session {
   user: { id: string; createdAt: string; updatedAt: string };
   csrfToken: string;
 }
