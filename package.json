@@ -8,6 +8,9 @@
     "pnpm": ">=10.30.3 <11"
   },
   "scripts": {
+    "agent:context": "node scripts/agent/context.mjs",
+    "agent:check": "node scripts/agent/check.mjs",
+    "agent:verify": "node scripts/agent/verify.mjs",
     "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter=@commit-health/web",
     "dev:server": "turbo run dev --filter=@commit-health/server",

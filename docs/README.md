@@ -1,3 +1,6 @@
-# 설계 문서
+# Development docs
 
-향후 데이터 모델, 인증 방식, API 계약이 결정되면 이 디렉터리에 문서를 추가합니다.
+- [Code map and implementation scope](architecture.md)
+- [AI harness usage and verification](agent-workflow.md)
+- [Authentication architecture and policy](auth.md)
+- [Deployment configuration and approved procedures](deployment.md)
