@@ -20,7 +20,8 @@ apps/server/src/generated/
 *.key
 .aws/
 .codex/
-.agents/
+.agents/*
+!.agents/skills/
 
 # Logs and local tooling
 *.log

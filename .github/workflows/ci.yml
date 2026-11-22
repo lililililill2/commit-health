@@ -56,6 +56,9 @@ jobs:
       - name: Check formatting
         run: pnpm format:check
 
+      - name: Check agent harness
+        run: pnpm agent:check
+
       - name: Lint
         run: pnpm lint
 
