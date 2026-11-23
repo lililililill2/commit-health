@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent } from '
 import { shiftSleepTime } from '@/entities/sleep';
 import { cn } from '@/shared/lib';
 
-const hours = ['', ...Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'))];
+const hours = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'));
 const minutes = ['00', '15', '30', '45'];
 
 // The viewport is three rows tall with a row of padding at each end.
@@ -20,6 +20,7 @@ function TimeWheel({
   unit,
   options,
   value,
+  previewValue = options[0],
   disabled = false,
   onChange,
 }: {
@@ -27,6 +28,7 @@ function TimeWheel({
   unit: string;
   options: string[];
   value: string;
+  previewValue?: string;
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
@@ -34,13 +36,14 @@ function TimeWheel({
   const drag = useRef<{ pointerId: number; y: number; top: number; moved: boolean } | null>(null);
   const ignoreClick = useRef(false);
   const index = options.indexOf(value);
+  const wheelIndex = index < 0 ? options.indexOf(previewValue) : index;
   const lastIndex = options.length - 1;
 
   useLayoutEffect(() => {
     const element = viewport.current;
-    if (element && centeredIndex(element, lastIndex) !== index)
-      element.scrollTop = index * rowHeight(element);
-  }, [index, lastIndex]);
+    if (element && centeredIndex(element, lastIndex) !== wheelIndex)
+      element.scrollTop = wheelIndex * rowHeight(element);
+  }, [wheelIndex, lastIndex]);
 
   function select(element: HTMLDivElement, next: number) {
     const clamped = Math.max(0, Math.min(lastIndex, next));
@@ -50,7 +53,14 @@ function TimeWheel({
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (disabled) return;
-    const move = { ArrowUp: index + 1, ArrowDown: index - 1, Home: 0, End: lastIndex };
+    const move = {
+      ArrowUp: wheelIndex + 1,
+      ArrowDown: wheelIndex - 1,
+      Home: 0,
+      End: lastIndex,
+      Enter: wheelIndex,
+      ' ': wheelIndex,
+    };
     if (!Object.hasOwn(move, event.key)) return;
     event.preventDefault();
     select(event.currentTarget, move[event.key as keyof typeof move]);
@@ -89,24 +99,30 @@ function TimeWheel({
     if (!current.moved) return;
     const element = event.currentTarget;
     const next = centeredIndex(element, lastIndex);
-    select(element, next);
+    element.scrollTop = next * rowHeight(element);
     delete element.dataset.dragging;
+    if (next !== wheelIndex) onChange(options[next]);
   }
 
   return (
     <div className="relative min-w-0 flex-1 rounded-xl border border-white/15 bg-[#17171a]">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-1 top-11 h-11 rounded-lg border border-[#7db8ff]/40 bg-[#7db8ff]/10"
+        className={cn(
+          'pointer-events-none absolute inset-x-1 top-11 h-11 rounded-lg border',
+          index < 0 ? 'border-dashed border-white/25' : 'border-[#7db8ff]/40 bg-[#7db8ff]/10',
+        )}
       />
       <div
         ref={viewport}
         role="spinbutton"
         aria-label={`${label} ${unit}`}
-        aria-valuemin={options[0] === '' ? -1 : 0}
+        aria-valuemin={0}
         aria-valuemax={Number(options[lastIndex])}
-        aria-valuenow={value === '' ? -1 : Number(value)}
-        aria-valuetext={value === '' ? '선택 안 함' : `${value}${unit}`}
+        aria-valuenow={index < 0 ? undefined : Number(value)}
+        aria-valuetext={
+          index < 0 ? `선택 안 함, ${previewValue}${unit}부터 표시` : `${value}${unit}`
+        }
         aria-disabled={disabled}
         tabIndex={disabled ? -1 : 0}
         onKeyDown={onKeyDown}
@@ -121,7 +137,7 @@ function TimeWheel({
         onScroll={(event) => {
           if (disabled) return;
           const next = centeredIndex(event.currentTarget, lastIndex);
-          if (next !== index) onChange(options[next]);
+          if (next !== wheelIndex) onChange(options[next]);
         }}
         className={cn(
           'relative h-[8.25rem] snap-y snap-mandatory rounded-xl py-11 select-none [scrollbar-width:none]',
@@ -145,7 +161,8 @@ function TimeWheel({
               i === index ? 'font-semibold text-white' : 'text-white/60',
             )}
           >
-            {option ? `${option}${unit}` : '--'}
+            {option}
+            {unit}
           </div>
         ))}
       </div>
@@ -156,16 +173,18 @@ function TimeWheel({
 export function SleepTimePicker({
   label,
   date,
+  previewHour,
   value,
   onChange,
 }: {
   label: string;
   date?: string;
+  previewHour: string;
   value: string;
   onChange: (value: string) => void;
 }) {
   const hour = value.slice(0, 2),
-    minute = value.slice(3) || '00';
+    minute = value.slice(3);
   return (
     <fieldset className="space-y-3 rounded-lg border border-white/15 p-4">
       <legend className="px-1 text-sm">{label}</legend>
@@ -176,7 +195,8 @@ export function SleepTimePicker({
           unit="시"
           options={hours}
           value={hour}
-          onChange={(nextHour) => onChange(nextHour ? `${nextHour}:${minute}` : '')}
+          previewValue={previewHour}
+          onChange={(nextHour) => onChange(`${nextHour}:${minute || '00'}`)}
         />
         <span aria-hidden="true">:</span>
         <TimeWheel

@@ -18,6 +18,7 @@ const buttonClass =
   'min-h-11 rounded-lg border border-white/30 px-5 py-2.5 text-sm font-medium hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#7db8ff] disabled:cursor-not-allowed disabled:opacity-50';
 
 const koreanDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' });
+const LONG_SLEEP_MINUTES = 16 * 60;
 
 function bedtimeDate(recordDate: string, bedtime: string, wakeTime: string): string {
   if (bedtime <= wakeTime) return recordDate;
@@ -36,6 +37,9 @@ export function SleepRecordForm() {
   const [confirmation, setConfirmation] = useState<SleepInput | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const duration = sleepDuration(bedtime, wakeTime);
+  const confirmationDuration = confirmation
+    ? sleepDuration(confirmation.bedtime, confirmation.wakeTime)
+    : null;
 
   useEffect(() => {
     if (confirmation) dialog.current?.showModal();
@@ -82,7 +86,9 @@ export function SleepRecordForm() {
       <section className="mt-8 max-w-xl rounded-xl border border-emerald-400/40 bg-emerald-400/5 p-6">
         <h2 className="font-medium text-emerald-300">✓ 확정한 수면 기록</h2>
         <p className="mt-3 text-sm text-white/60">{record.recordDate} 기상 기준 · 한국 시간</p>
-        <p className="mt-6 text-2xl font-medium">{formatSleepDuration(record.durationMinutes)}</p>
+        <p className="mt-6 text-2xl font-medium">
+          약 {formatSleepDuration(record.durationMinutes)}
+        </p>
         <p className="mt-3 text-sm">
           잠든 시간 {koreanDate.format(new Date(record.bedtime))} {formatSleepTime(record.bedtime)}
         </p>
@@ -106,6 +112,7 @@ export function SleepRecordForm() {
             {
               id: 'bedtime',
               label: '잠든 시간',
+              previewHour: '23',
               date:
                 duration === null
                   ? undefined
@@ -116,6 +123,7 @@ export function SleepRecordForm() {
             {
               id: 'wake-time',
               label: '일어난 시간',
+              previewHour: '07',
               date: today.data.recordDate,
               value: wakeTime,
               change: setWakeTime,
@@ -125,20 +133,21 @@ export function SleepRecordForm() {
               key={field.id}
               label={field.label}
               date={field.date}
+              previewHour={field.previewHour}
               value={field.value}
               onChange={field.change}
             />
           ))}
         </div>
         <p className="text-xs leading-6 text-white/60">
-          시와 분을 위아래로 밀어서 15분 단위로 맞춰 주세요. 자정을 넘겨 잤더라도 전체 수면 시간은
-          일어난 날에 기록돼요.
+          시와 분을 위아래로 밀거나 숫자를 눌러 15분 단위로 골라 주세요. 자정을 넘겨 잤더라도 전체
+          수면 시간은 일어난 날에 기록돼요.
         </p>
         <p className="text-xs text-white/60">
-          예: 어제 23:00에 잠들어 오늘 07:00에 일어나면 오늘 기록에 8시간이 저장돼요.
+          예: 어제 23:00에 잠들어 오늘 07:00에 일어나면 오늘 기록에 약 8시간이 저장돼요.
         </p>
         <div aria-live="polite" className="rounded-lg bg-white/5 p-4">
-          <p className="text-sm text-white/60">수면 시간</p>
+          <p className="text-sm text-white/60">대략 잔 시간</p>
           <p className="mt-2 text-2xl font-medium">
             {duration === null ? '시간을 선택해 주세요.' : formatSleepDuration(duration)}
           </p>
@@ -170,7 +179,7 @@ export function SleepRecordForm() {
           <h2 id="sleep-confirm-heading" className="text-lg font-medium">
             수면 기록을 확정할까요?
           </h2>
-          {confirmation && (
+          {confirmation && confirmationDuration !== null && (
             <div className="mt-5 space-y-2 text-sm">
               <p>기록 날짜 {confirmation.recordDate} · 한국 시간</p>
               <p>
@@ -181,9 +190,17 @@ export function SleepRecordForm() {
               <p>
                 일어난 시간 {confirmation.recordDate} {confirmation.wakeTime}
               </p>
-              <p className="text-xl font-medium">
-                {formatSleepDuration(sleepDuration(confirmation.bedtime, confirmation.wakeTime)!)}
-              </p>
+              <div className="rounded-lg bg-white/5 p-3">
+                <p className="text-white/60">대략 잔 시간</p>
+                <p className="mt-1 text-xl font-medium">
+                  {formatSleepDuration(confirmationDuration)}
+                </p>
+              </div>
+              {confirmationDuration >= LONG_SLEEP_MINUTES && (
+                <p className="text-amber-200">
+                  잔 시간이 길게 계산됐어요. 잠든 날짜와 두 시각을 다시 확인해 주세요.
+                </p>
+              )}
             </div>
           )}
           <p id="sleep-confirm-warning" className="mt-5 text-sm leading-6 text-amber-200">

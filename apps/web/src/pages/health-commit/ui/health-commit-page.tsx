@@ -21,7 +21,7 @@ export function HealthCommitPage({ categories }: { categories: readonly CommitCa
     completed.push({
       id: 'sleep',
       title: '수면',
-      summary: formatSleepDuration(record.durationMinutes),
+      summary: `약 ${formatSleepDuration(record.durationMinutes)}`,
     });
   if (activity.data?.focus.count)
     completed.push({
