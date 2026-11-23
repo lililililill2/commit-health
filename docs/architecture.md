@@ -30,13 +30,14 @@ Read manifests/lockfile for exact versions instead of maintaining duplicate vers
 4. [ESLint](../apps/web/eslint.config.mjs) restricts upward/same-layer imports and slice deep imports by alias.
    Use `index.ts` public APIs. Keep [pages/README.md](../apps/web/pages/README.md) to prevent router conflicts.
 
-| Route                                  | Current behavior                                                 | Source                                                                                     |
-| -------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `/`                                    | Session lookup: loading, connection error, Google login, or dorm | [HomePage](../apps/web/src/pages/home/ui/home-page.tsx)                                    |
-| `/3d-preview`                          | Public 3D preview                                                | [Route](../apps/web/app/3d-preview/page.tsx)                                               |
-| `/auth/error`                          | Auth failure guidance                                            | [Route](../apps/web/app/auth/error/page.tsx)                                               |
-| `/settings`                            | Protected settings and logout                                    | [SettingsPage](../apps/web/src/pages/settings/ui/settings-page.tsx)                        |
-| `/commit`, `/records`, `/achievements` | Protected placeholders with a title and back link                | [MenuPlaceholderPage](../apps/web/src/pages/menu-placeholder/ui/menu-placeholder-page.tsx) |
+| Route                           | Current behavior                                                 | Source                                                                                     |
+| ------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `/`                             | Session lookup: loading, connection error, Google login, or dorm | [HomePage](../apps/web/src/pages/home/ui/home-page.tsx)                                    |
+| `/3d-preview`                   | Public 3D preview                                                | [Route](../apps/web/app/3d-preview/page.tsx)                                               |
+| `/auth/error`                   | Auth failure guidance                                            | [Route](../apps/web/app/auth/error/page.tsx)                                               |
+| `/settings`                     | Protected settings and logout                                    | [SettingsPage](../apps/web/src/pages/settings/ui/settings-page.tsx)                        |
+| `/commit`, `/commit/[category]` | Protected daily records and category forms                       | [Health commit](../apps/web/src/pages/health-commit/index.ts)                              |
+| `/records`, `/achievements`     | Protected placeholders with a title and back link                | [MenuPlaceholderPage](../apps/web/src/pages/menu-placeholder/ui/menu-placeholder-page.tsx) |
 
 [DormStage](../apps/web/src/widgets/dorm-stage/ui/dorm-stage.tsx) overlays menus, a clock, and glass header/footer on 3D,
 hiding UI during rotation. [DormHud](../apps/web/src/widgets/dorm-stage/ui/dorm-hud.tsx) shows static quests with no completion API.
@@ -48,7 +49,7 @@ centers and measures `public/models/dorm.glb`, fits the camera, and disables zoo
 
 [main.ts](../apps/server/src/main.ts), [AppModule](../apps/server/src/app.module.ts), and
 [configureApp](../apps/server/src/config/configure-app.ts) configure startup, `/api`, ValidationPipe, and CORS.
-Current feature modules are `health` and `auth`. [AuthModule](../apps/server/src/modules/auth/auth.module.ts)
+Feature modules include `health`, `auth`, `sleep`, and `activity`. [AuthModule](../apps/server/src/modules/auth/auth.module.ts)
 registers SessionGuard as `APP_GUARD`, requiring authentication by default.
 
 See [auth.md](auth.md) for the auth contract and cookie policy. Relevant implementation:
@@ -67,10 +68,10 @@ This policy is separate from investigating concurrent login starts or DB latency
 
 ## Database and extension points
 
-[schema.prisma](../apps/server/prisma/schema.prisma) defines `User`, `Session`, and `OAuthAttempt`.
-There is one migration, `20261026015130_google_auth`; source files do not prove its application to a live DB.
-User stores only Google sub, an internal ID, and timestamps. This checkout has no health-record, character,
-achievement, or app-connection models.
+[schema.prisma](../apps/server/prisma/schema.prisma) defines `User`, `Session`, `OAuthAttempt`, and user-owned sleep, condition, and activity records.
+User stores Google sub, an internal ID, and timestamps. Migration files describe the schema changes for each feature.
+
+[ActivityService](../apps/server/src/modules/activity/activity.service.ts) shares `ActivitySession` across focus, meditation, and shoulder stretching. Stretching checks both client-reported durations and the session lifetime. [StretchCamera](../apps/web/src/features/record-activity/model/stretch-camera.ts) runs pose analysis in the browser and releases the webcam when the user leaves or completes the exercise.
 
 [PrismaService](../apps/server/src/prisma/prisma.service.ts) lazily creates the runtime client using the pooled connection.
 [prisma.config.ts](../apps/server/prisma.config.ts) prefers the direct connection for the normal CLI.

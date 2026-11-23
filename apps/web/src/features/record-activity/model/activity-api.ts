@@ -1,6 +1,6 @@
 import { isAxiosError } from 'axios';
 import { getSession } from '@/entities/session';
-import type { ActivityKind, ActivitySession } from '@/entities/activity';
+import type { ActivitySession } from '@/entities/activity';
 import { apiBaseUrl, apiClient } from '@/shared/api';
 
 export async function activityHeaders(userId: string | undefined) {
@@ -15,7 +15,7 @@ export function activityError(error: unknown) {
   }
   return '연결 상태를 확인한 뒤 다시 시도해 주세요.';
 }
-export function activityTimerApi(userId: string | undefined, kind: ActivityKind) {
+export function activityTimerApi(userId: string | undefined, kind: ActivitySession['kind']) {
   let headers: Record<string, string> = {};
   return {
     async start() {
@@ -26,8 +26,9 @@ export function activityTimerApi(userId: string | undefined, kind: ActivityKind)
     async heartbeat(id: string) {
       await apiClient.post(`activity/sessions/${id}/heartbeat`, {}, { headers });
     },
-    async complete(id: string) {
-      await apiClient.post(`activity/sessions/${id}/complete`, {}, { headers });
+    async complete(id: string, stretch?: { leftMs: number; rightMs: number }) {
+      const action = stretch ? 'stretching-complete' : 'complete';
+      await apiClient.post(`activity/sessions/${id}/${action}`, stretch ?? {}, { headers });
     },
     async fail(id: string) {
       // Keepalive can finish while a route or document is being left. Missing requests expire server-side.

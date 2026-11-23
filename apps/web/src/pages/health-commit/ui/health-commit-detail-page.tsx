@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { SleepRecordForm } from '@/features/record-sleep';
-import { ActivityTimer, ConditionForm } from '@/features/record-activity';
+import { ActivityTimer, ConditionForm, StretchingPanel } from '@/features/record-activity';
 
 import type { CommitCategory } from '../model/commit-category';
 
@@ -22,6 +22,8 @@ export function HealthCommitDetailPage({ category }: { category: CommitCategory 
         <ActivityTimer kind={category.id} />
       ) : category.id === 'condition' ? (
         <ConditionForm />
+      ) : category.id === 'stretching' ? (
+        <StretchingPanel />
       ) : (
         <div className="mt-8 rounded-xl border border-white/20 bg-white/5 p-6">
           <p className="text-sm text-white/70">기록 입력을 준비하고 있어요.</p>

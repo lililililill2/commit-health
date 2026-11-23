@@ -35,6 +35,12 @@ export function HealthCommitPage({ categories }: { categories: readonly CommitCa
       title: '명상',
       summary: `${activity.data.meditation.count}회 · ${formatActivityDuration(activity.data.meditation.seconds)}`,
     });
+  if (activity.data?.stretching?.count)
+    completed.push({
+      id: 'stretching',
+      title: '스트레칭',
+      summary: `${activity.data.stretching.count}회 · ${formatActivityDuration(activity.data.stretching.seconds)}`,
+    });
   if (activity.data?.condition)
     completed.push({
       id: 'condition',

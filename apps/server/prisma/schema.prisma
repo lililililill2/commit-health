@@ -68,6 +68,7 @@ model ConditionRecord {
 enum ActivityKind {
   FOCUS
   MEDITATION
+  SHOULDER_CROSS_BODY
 }
 
 enum ActivityStatus {

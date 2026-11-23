@@ -6,7 +6,7 @@ import { apiClient } from '@/shared/api';
 export type ActivityKind = 'focus' | 'meditation';
 export interface ActivitySession {
   id: string;
-  kind: ActivityKind;
+  kind: ActivityKind | 'shoulder-cross-body';
   status: string;
   startedAt: string;
   durationSeconds: number;
@@ -17,6 +17,7 @@ export interface ActivityDay {
   condition: { score: number; updatedAt: string } | null;
   focus: { count: number; seconds: number };
   meditation: { count: number; seconds: number };
+  stretching: { count: number; seconds: number };
   activeSession: ActivitySession | null;
 }
 export const activityQueryKey = (userId: string | undefined) =>

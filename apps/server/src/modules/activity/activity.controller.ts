@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
 import { CurrentUser, type SessionUser } from '../../auth/auth-context.js';
-import { SaveConditionDto, StartActivityDto } from './activity.dto.js';
+import { CompleteStretchDto, SaveConditionDto, StartActivityDto } from './activity.dto.js';
 import { ActivityService } from './activity.service.js';
 
 @Controller('activity')
@@ -30,6 +30,15 @@ export class ActivityController {
   @Post('sessions/:id/complete')
   complete(@CurrentUser() user: SessionUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.activity.complete(user.id, id);
+  }
+
+  @Post('sessions/:id/stretching-complete')
+  completeStretch(
+    @CurrentUser() user: SessionUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: CompleteStretchDto,
+  ) {
+    return this.activity.complete(user.id, id, input);
   }
 
   @Post('sessions/:id/fail')

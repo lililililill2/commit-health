@@ -1,8 +1,18 @@
-import { IsIn, IsInt, IsString, Matches, Max, Min } from 'class-validator';
+import { Equals, IsIn, IsInt, IsString, Matches, Max, Min } from 'class-validator';
+
+export const STRETCH_DIRECTION_MS = 10_000;
 
 export class StartActivityDto {
-  @IsIn(['focus', 'meditation'])
-  kind!: 'focus' | 'meditation';
+  @IsIn(['focus', 'meditation', 'shoulder-cross-body'])
+  kind!: 'focus' | 'meditation' | 'shoulder-cross-body';
+}
+
+export class CompleteStretchDto {
+  @Equals(STRETCH_DIRECTION_MS)
+  leftMs!: number;
+
+  @Equals(STRETCH_DIRECTION_MS)
+  rightMs!: number;
 }
 
 export class SaveConditionDto {

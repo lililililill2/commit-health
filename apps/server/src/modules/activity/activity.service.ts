@@ -7,18 +7,31 @@ import {
 import { createHash } from 'node:crypto';
 
 import { koreanDay } from '../../common/korean-day.js';
-import type { ActivitySession } from '../../generated/prisma/client.js';
+import type { ActivityKind, ActivitySession } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ActivityClock } from './activity-clock.js';
-import { SaveConditionDto } from './activity.dto.js';
+import {
+  STRETCH_DIRECTION_MS,
+  type CompleteStretchDto,
+  type SaveConditionDto,
+  type StartActivityDto,
+} from './activity.dto.js';
 
 export const ACTIVITY_TIMEOUT_MS = 15_000;
 export const MEDITATION_SECONDS = 180;
+const stretchSeconds = (2 * STRETCH_DIRECTION_MS) / 1_000;
+const activityKinds = {
+  focus: 'FOCUS',
+  meditation: 'MEDITATION',
+  'shoulder-cross-body': 'SHOULDER_CROSS_BODY',
+} as const satisfies Record<StartActivityDto['kind'], ActivityKind>;
 
 function sessionView(session: ActivitySession) {
   return {
     id: session.id,
-    kind: session.kind === 'FOCUS' ? ('focus' as const) : ('meditation' as const),
+    kind: (Object.keys(activityKinds) as StartActivityDto['kind'][]).find(
+      (kind) => activityKinds[kind] === session.kind,
+    ),
     status: session.status.toLowerCase(),
     startedAt: session.startedAt.toISOString(),
     durationSeconds: session.durationSeconds,
@@ -60,7 +73,7 @@ export class ActivityService {
       }),
       this.prisma.client.activitySession.findFirst({ where: { userId, status: 'RUNNING' } }),
     ]);
-    const total = (kind: 'FOCUS' | 'MEDITATION') => {
+    const total = (kind: ActivityKind) => {
       const value = totals.find((row) => row.kind === kind);
       return { count: value?._count._all ?? 0, seconds: value?._sum.durationSeconds ?? 0 };
     };
@@ -71,6 +84,7 @@ export class ActivityService {
         : null,
       focus: total('FOCUS'),
       meditation: total('MEDITATION'),
+      stretching: total('SHOULDER_CROSS_BODY'),
       activeSession: active ? sessionView(active) : null,
     };
   }
@@ -89,7 +103,7 @@ export class ActivityService {
     return this.today(userId);
   }
 
-  async start(userId: string, kind: 'focus' | 'meditation') {
+  async start(userId: string, kind: StartActivityDto['kind']) {
     const now = this.clock.now(),
       day = koreanDay(now);
     const lock = createHash('sha256').update(`activity:${userId}`).digest().readBigInt64BE();
@@ -107,7 +121,7 @@ export class ActivityService {
         data: {
           userId,
           recordDate: new Date(day.recordDate),
-          kind: kind === 'focus' ? 'FOCUS' : 'MEDITATION',
+          kind: activityKinds[kind],
           startedAt: now,
           lastSeenAt: now,
         },
@@ -155,13 +169,28 @@ export class ActivityService {
     return { status: 'running' };
   }
 
-  async complete(userId: string, id: string) {
+  async complete(userId: string, id: string, stretch?: CompleteStretchDto) {
     const { session, now } = await this.live(userId, id);
+    const isStretch = session.kind === 'SHOULDER_CROSS_BODY';
+    if (isStretch !== Boolean(stretch)) {
+      throw new BadRequestException('측정 종류에 맞는 완료 요청이 필요해요.');
+    }
+    if (
+      stretch &&
+      (stretch.leftMs !== STRETCH_DIRECTION_MS || stretch.rightMs !== STRETCH_DIRECTION_MS)
+    ) {
+      throw new BadRequestException('양쪽 자세를 각각 10초씩 완료해 주세요.');
+    }
     if (session.status === 'COMPLETED') return this.today(userId);
     if (session.status !== 'RUNNING')
       throw new ConflictException('실패한 측정은 완료할 수 없어요.');
     const seconds = Math.floor((now.getTime() - session.startedAt.getTime()) / 1_000);
-    if (seconds < (session.kind === 'MEDITATION' ? MEDITATION_SECONDS : 1))
+    const requiredSeconds = isStretch
+      ? stretchSeconds
+      : session.kind === 'MEDITATION'
+        ? MEDITATION_SECONDS
+        : 1;
+    if (seconds < requiredSeconds)
       throw new BadRequestException('아직 측정 시간이 충족되지 않았어요.');
     const changed = await this.prisma.client.activitySession.updateMany({
       where: {
@@ -173,7 +202,7 @@ export class ActivityService {
       data: {
         status: 'COMPLETED',
         endedAt: now,
-        durationSeconds: session.kind === 'MEDITATION' ? MEDITATION_SECONDS : seconds,
+        durationSeconds: session.kind === 'FOCUS' ? seconds : requiredSeconds,
       },
     });
     if (changed.count !== 1 && (await this.owned(userId, id)).status !== 'COMPLETED')
