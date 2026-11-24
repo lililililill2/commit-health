@@ -30,6 +30,13 @@ export function activityTimerApi(userId: string | undefined, kind: ActivitySessi
       const action = stretch ? 'stretching-complete' : 'complete';
       await apiClient.post(`activity/sessions/${id}/${action}`, stretch ?? {}, { headers });
     },
+    async completeMeditation(id: string, playedSeconds: number) {
+      await apiClient.post(
+        `activity/sessions/${id}/meditation-complete`,
+        { playedSeconds },
+        { headers, adapter: 'fetch', fetchOptions: { keepalive: true } },
+      );
+    },
     async fail(id: string) {
       // Keepalive can finish while a route or document is being left. Missing requests expire server-side.
       const response = await fetch(

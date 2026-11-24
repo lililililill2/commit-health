@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useSession } from '@/entities/session';
 import { formatSleepDuration, useTodaySleep } from '@/entities/sleep';
 import { formatActivityDuration, useTodayActivity } from '@/entities/activity';
+import { formatCaffeineMg, useTodayCaffeine } from '@/entities/caffeine';
+import { useTodayMealProgress } from '@/entities/meal';
 
 import { cn } from '@/shared/lib';
 
@@ -15,6 +17,8 @@ export function HealthCommitPage({ categories }: { categories: readonly CommitCa
   const session = useSession();
   const sleep = useTodaySleep(session.data?.user.id);
   const activity = useTodayActivity(session.data?.user.id);
+  const caffeine = useTodayCaffeine(session.data?.user.id);
+  const meals = useTodayMealProgress(session.data?.user.id);
   const record = sleep.data?.record;
   const completed: { id: string; title: string; summary: string }[] = [];
   if (record)
@@ -22,6 +26,18 @@ export function HealthCommitPage({ categories }: { categories: readonly CommitCa
       id: 'sleep',
       title: '수면',
       summary: `약 ${formatSleepDuration(record.durationMinutes)}`,
+    });
+  if (caffeine.data?.records.length)
+    completed.push({
+      id: 'caffeine',
+      title: '카페인',
+      summary: `${caffeine.data.records.length}잔 · ${formatCaffeineMg(caffeine.data.totalMg)}`,
+    });
+  if (meals.data?.mainMeals)
+    completed.push({
+      id: 'meals',
+      title: '식사',
+      summary: `아침·점심·저녁 ${meals.data.mainMeals}/3 기록`,
     });
   if (activity.data?.focus.count)
     completed.push({
@@ -49,7 +65,11 @@ export function HealthCommitPage({ categories }: { categories: readonly CommitCa
     });
   const completedIds = new Set(completed.map((item) => item.id));
   const pending = categories.filter((category) => !completedIds.has(category.id));
-  const failed = (sleep.isError && !sleep.data) || (activity.isError && !activity.data);
+  const failed =
+    (sleep.isError && !sleep.data) ||
+    (activity.isError && !activity.data) ||
+    (caffeine.isError && !caffeine.data) ||
+    (meals.isError && !meals.data);
   return (
     <main className="mx-auto w-full max-w-6xl">
       <Link
@@ -70,6 +90,8 @@ export function HealthCommitPage({ categories }: { categories: readonly CommitCa
             onClick={() => {
               void sleep.refetch();
               void activity.refetch();
+              void caffeine.refetch();
+              void meals.refetch();
             }}
             className="underline"
           >
@@ -139,7 +161,7 @@ export function HealthCommitPage({ categories }: { categories: readonly CommitCa
           </ul>
         ) : (
           <p className="mt-4 text-sm text-white/50">
-            {sleep.isPending || activity.isPending
+            {sleep.isPending || activity.isPending || caffeine.isPending || meals.isPending
               ? '오늘의 기록을 불러오는 중…'
               : failed
                 ? '기록 상태를 확인해 주세요.'

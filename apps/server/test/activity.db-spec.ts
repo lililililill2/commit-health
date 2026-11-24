@@ -195,20 +195,23 @@ describe('daily condition and foreground activity records', () => {
     await write(who, `/api/activity/sessions/${id}/complete`).expect(409);
     expect((await read(who)).body).toMatchObject({ focus: { count: 0, seconds: 0 } });
   });
-  it('requires the full three minutes of meditation with uninterrupted heartbeats', async () => {
+  it('requires the three-minute playback report and a live meditation session', async () => {
     const who = await identity(),
       id = await start(who, 'meditation');
-    await write(who, `/api/activity/sessions/${id}/complete`).expect(400);
+    const path = `/api/activity/sessions/${id}/meditation-complete`;
+    const evidence = { playedSeconds: 180 };
+    await write(who, path, evidence).expect(400);
     for (let i = 0; i < 14; i++) {
       advance(12);
       await write(who, `/api/activity/sessions/${id}/heartbeat`).expect(201);
     }
     advance(11);
-    await write(who, `/api/activity/sessions/${id}/complete`).expect(400);
+    await write(who, path, evidence).expect(400);
     advance(1);
-    const result = await write(who, `/api/activity/sessions/${id}/complete`).expect(201);
+    await write(who, path, { playedSeconds: 179 }).expect(400);
+    const result = await write(who, path, evidence).expect(201);
     expect(result.body).toMatchObject({ meditation: { count: 1, seconds: 180 } });
-    await write(who, `/api/activity/sessions/${id}/complete`).expect(201);
+    await write(who, path, evidence).expect(201);
     expect((await read(who)).body).toMatchObject({ meditation: { count: 1, seconds: 180 } });
   });
   it('allows only one concurrent session per user and replaces abandoned sessions only after expiry', async () => {

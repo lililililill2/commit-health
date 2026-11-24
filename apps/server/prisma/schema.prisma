@@ -17,6 +17,41 @@ model User {
   sleepRecords     SleepRecord[]
   conditionRecords ConditionRecord[]
   activitySessions ActivitySession[]
+  caffeineRecords  CaffeineRecord[]
+  mealRecords      MealRecord[]
+  school           UserSchool?
+}
+
+enum MealKind {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+model MealRecord {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  recordDate DateTime @db.Date
+  kind       MealKind
+  items      Json
+  note       String   @default("") @db.VarChar(500)
+  revision   Int      @default(1)
+  requestId  String   @db.Uuid
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recordDate, kind])
+}
+
+model UserSchool {
+  userId     String @id @db.Uuid
+  officeCode String @db.VarChar(3)
+  schoolCode String @db.VarChar(7)
+  name       String @db.VarChar(120)
+  region     String @db.VarChar(200)
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Session {
@@ -52,6 +87,20 @@ model SleepRecord {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, recordDate])
+}
+
+model CaffeineRecord {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  recordDate   DateTime @db.Date
+  drinkName    String   @db.VarChar(100)
+  catalogId    String?  @db.VarChar(100)
+  servingLabel String?  @db.VarChar(80)
+  caffeineMg   Decimal  @db.Decimal(6, 2)
+  consumedAt   DateTime @db.Timestamptz(3)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordDate, consumedAt])
 }
 
 model ConditionRecord {

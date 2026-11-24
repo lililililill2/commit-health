@@ -11,20 +11,25 @@ import type { ActivityKind, ActivitySession } from '../../generated/prisma/clien
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ActivityClock } from './activity-clock.js';
 import {
+  MEDITATION_SECONDS,
   STRETCH_DIRECTION_MS,
+  type CompleteMeditationDto,
   type CompleteStretchDto,
   type SaveConditionDto,
   type StartActivityDto,
 } from './activity.dto.js';
 
 export const ACTIVITY_TIMEOUT_MS = 15_000;
-export const MEDITATION_SECONDS = 180;
 const stretchSeconds = (2 * STRETCH_DIRECTION_MS) / 1_000;
 const activityKinds = {
   focus: 'FOCUS',
   meditation: 'MEDITATION',
   'shoulder-cross-body': 'SHOULDER_CROSS_BODY',
 } as const satisfies Record<StartActivityDto['kind'], ActivityKind>;
+
+type Completion =
+  | { kind: 'shoulder-cross-body'; input: CompleteStretchDto }
+  | { kind: 'meditation'; input: CompleteMeditationDto };
 
 function sessionView(session: ActivitySession) {
   return {
@@ -169,15 +174,15 @@ export class ActivityService {
     return { status: 'running' };
   }
 
-  async complete(userId: string, id: string, stretch?: CompleteStretchDto) {
+  async complete(userId: string, id: string, completion?: Completion) {
     const { session, now } = await this.live(userId, id);
-    const isStretch = session.kind === 'SHOULDER_CROSS_BODY';
-    if (isStretch !== Boolean(stretch)) {
+    if (session.kind !== activityKinds[completion?.kind ?? 'focus']) {
       throw new BadRequestException('측정 종류에 맞는 완료 요청이 필요해요.');
     }
     if (
-      stretch &&
-      (stretch.leftMs !== STRETCH_DIRECTION_MS || stretch.rightMs !== STRETCH_DIRECTION_MS)
+      completion?.kind === 'shoulder-cross-body' &&
+      (completion.input.leftMs !== STRETCH_DIRECTION_MS ||
+        completion.input.rightMs !== STRETCH_DIRECTION_MS)
     ) {
       throw new BadRequestException('양쪽 자세를 각각 10초씩 완료해 주세요.');
     }
@@ -185,11 +190,19 @@ export class ActivityService {
     if (session.status !== 'RUNNING')
       throw new ConflictException('실패한 측정은 완료할 수 없어요.');
     const seconds = Math.floor((now.getTime() - session.startedAt.getTime()) / 1_000);
-    const requiredSeconds = isStretch
-      ? stretchSeconds
-      : session.kind === 'MEDITATION'
-        ? MEDITATION_SECONDS
-        : 1;
+    let requiredSeconds = 1;
+    if (completion?.kind === 'shoulder-cross-body') requiredSeconds = stretchSeconds;
+    if (completion?.kind === 'meditation') {
+      const { playedSeconds } = completion.input;
+      if (
+        !Number.isInteger(playedSeconds) ||
+        playedSeconds < MEDITATION_SECONDS ||
+        playedSeconds > seconds
+      ) {
+        throw new BadRequestException('안내 음성을 3분 이상 재생해 주세요.');
+      }
+      requiredSeconds = MEDITATION_SECONDS;
+    }
     if (seconds < requiredSeconds)
       throw new BadRequestException('아직 측정 시간이 충족되지 않았어요.');
     const changed = await this.prisma.client.activitySession.updateMany({

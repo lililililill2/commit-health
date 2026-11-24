@@ -9,16 +9,15 @@ import {
   formatActivityDuration,
   timerDigits,
   useTodayActivity,
-  type ActivityKind,
 } from '@/entities/activity';
-import { createActivityTimer, MEDITATION_SECONDS } from '../model/activity-timer';
+import { createActivityTimer } from '../model/activity-timer';
 import { activityError, activityTimerApi } from '../model/activity-api';
 import { browserTimerEnvironment } from '../model/browser-timer-environment';
 
 const buttonClass =
   'min-h-11 rounded-lg border border-white/30 px-5 py-2.5 text-sm hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#7db8ff] disabled:cursor-not-allowed disabled:opacity-50';
 
-export function ActivityTimer({ kind }: { kind: ActivityKind }) {
+export function ActivityTimer() {
   const session = useSession(),
     userId = session.data?.user.id;
   const queryClient = useQueryClient(),
@@ -26,59 +25,28 @@ export function ActivityTimer({ kind }: { kind: ActivityKind }) {
   const timer = useMemo(
     () =>
       createActivityTimer({
-        kind,
-        api: activityTimerApi(userId, kind),
+        api: activityTimerApi(userId, 'focus'),
         environment: browserTimerEnvironment,
         onResult: () => {
           void queryClient.invalidateQueries({ queryKey: activityQueryKey(userId) });
         },
         describeError: activityError,
       }),
-    [kind, userId, queryClient],
+    [userId, queryClient],
   );
   const state = useSyncExternalStore(timer.subscribe, timer.getSnapshot, timer.getSnapshot);
   useEffect(() => () => timer.dispose(), [timer]);
   const active = ['starting', 'running', 'saving'].includes(state.phase);
-  const meditation = kind === 'meditation';
-  const total = today.data?.[kind];
-  const inhale = state.seconds % 10 < 4;
+  const total = today.data?.focus;
 
   return (
     <section className="mt-8 max-w-xl space-y-6 rounded-xl border border-white/20 bg-white/5 p-6">
       <p className="text-sm leading-6 text-white/65">
-        {meditation
-          ? '3분 동안 호흡 안내를 따라 편안하게 명상해 보세요.'
-          : '시작을 누르고 집중한 뒤, 마치기를 눌러 시간을 기록하세요.'}{' '}
-        측정 중 다른 탭·창으로 전환하거나 이 화면을 나가면 실패해요.
+        시작을 누르고 집중한 뒤, 마치기를 눌러 시간을 기록하세요. 측정 중 다른 탭·창으로 전환하거나
+        이 화면을 나가면 실패해요.
       </p>
-      {meditation && (
-        <div
-          className="flex min-h-48 flex-col items-center justify-center gap-5 overflow-hidden"
-          aria-hidden="true"
-        >
-          <div
-            className="flex size-28 items-center justify-center rounded-full border border-sky-200/30 bg-sky-300/20 transition-transform ease-in-out motion-reduce:transition-none"
-            style={{
-              transform: state.phase === 'running' && inhale ? 'scale(1.15)' : 'scale(0.8)',
-              transitionDuration: `${inhale ? 4 : 6}s`,
-            }}
-          >
-            <div className="size-16 rounded-full bg-sky-200/30" />
-          </div>
-          <p className="text-sm text-sky-100">
-            {state.phase === 'running'
-              ? inhale
-                ? '천천히 들이마시기'
-                : '편안하게 내쉬기'
-              : '준비되면 시작해 주세요.'}
-          </p>
-        </div>
-      )}
-      <p
-        className="text-center text-4xl tabular-nums"
-        aria-label={meditation ? '남은 명상 시간' : '집중 시간'}
-      >
-        {timerDigits(meditation ? Math.max(0, MEDITATION_SECONDS - state.seconds) : state.seconds)}
+      <p className="text-center text-4xl tabular-nums" aria-label="집중 시간">
+        {timerDigits(state.seconds)}
       </p>
       {state.message && (
         <p
@@ -114,7 +82,7 @@ export function ActivityTimer({ kind }: { kind: ActivityKind }) {
             {state.phase === 'idle' ? '시작하기' : '다시 시작하기'}
           </button>
         )}
-        {state.phase === 'running' && !meditation && (
+        {state.phase === 'running' && (
           <button
             type="button"
             disabled={state.seconds < 1}

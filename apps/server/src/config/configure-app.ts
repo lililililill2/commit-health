@@ -7,7 +7,7 @@ export function configureApp(app: INestApplication): void {
 
   app.setGlobalPrefix('api');
   app.use(
-    ['/api/auth', '/api/sleep', '/api/activity'],
+    ['/api/auth', '/api/sleep', '/api/activity', '/api/caffeine', '/api/meals'],
     (_request: Request, response: Response, next: NextFunction) => {
       response.setHeader('Cache-Control', 'no-store');
       response.setHeader('Referrer-Policy', 'no-referrer');

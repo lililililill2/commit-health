@@ -1,4 +1,3 @@
-export const MEDITATION_SECONDS = 180;
 export interface TimerEnvironment {
   now: () => number;
   visible: () => boolean;
@@ -18,7 +17,6 @@ export interface TimerState {
 }
 
 export function createActivityTimer(options: {
-  kind: 'focus' | 'meditation';
   api: TimerApi;
   environment: TimerEnvironment;
   onResult: () => void;
@@ -90,14 +88,7 @@ export function createActivityTimer(options: {
       return;
     }
     lastTick = now;
-    const elapsed = Math.max(0, Math.floor((now - started) / 1_000));
-    update({
-      seconds: options.kind === 'meditation' ? Math.min(elapsed, MEDITATION_SECONDS) : elapsed,
-    });
-    if (options.kind === 'meditation' && elapsed >= MEDITATION_SECONDS) {
-      void complete();
-      return;
-    }
+    update({ seconds: Math.max(0, Math.floor((now - started) / 1_000)) });
     if (now - lastPing >= 4_000 && !pinging && sessionId) {
       pinging = true;
       lastPing = now;

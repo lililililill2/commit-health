@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createActivityTimer } from './activity-timer.ts';
 
-function fixture(kind = 'focus', override = {}) {
+function fixture(override = {}) {
   let now = 0,
     tick,
     leave,
@@ -22,7 +22,6 @@ function fixture(kind = 'focus', override = {}) {
     ...override,
   };
   const timer = createActivityTimer({
-    kind,
     api,
     onResult() {},
     environment: {
@@ -71,21 +70,6 @@ test('focus counts elapsed time and saves exactly once on explicit completion', 
   assert.equal(f.calls.fail, 0);
 });
 
-test('meditation completes automatically at 180 seconds and never before', async () => {
-  const f = fixture('meditation');
-  await f.timer.start();
-  for (let i = 0; i < 179; i++) {
-    f.advance(1_000);
-    await flush();
-  }
-  assert.equal(f.calls.complete, 0);
-  assert.equal(f.timer.getSnapshot().seconds, 179);
-  f.advance(1_000);
-  await flush();
-  assert.equal(f.calls.complete, 1);
-  assert.equal(f.timer.getSnapshot().phase, 'completed');
-});
-
 test('leaving, hiding or disposing fails without awarding a completion', async () => {
   for (const action of ['leave', 'hide', 'dispose', 'cancel']) {
     const f = fixture();
@@ -107,7 +91,7 @@ test('leaving, hiding or disposing fails without awarding a completion', async (
 
 test('leaving while the start request is pending still fails the eventual server session', async () => {
   let resolveStart;
-  const f = fixture('focus', {
+  const f = fixture({
     start: () =>
       new Promise((resolve) => {
         resolveStart = resolve;
@@ -123,7 +107,7 @@ test('leaving while the start request is pending still fails the eventual server
 });
 
 test('network heartbeat failure and a long timer suspension cannot become success', async () => {
-  const network = fixture('focus', {
+  const network = fixture({
     heartbeat: async () => {
       throw new Error('offline');
     },
@@ -133,7 +117,7 @@ test('network heartbeat failure and a long timer suspension cannot become succes
   await flush();
   assert.equal(network.timer.getSnapshot().phase, 'failed');
   assert.equal(network.calls.complete, 0);
-  const suspended = fixture('meditation');
+  const suspended = fixture();
   await suspended.timer.start();
   suspended.advance(180_000);
   await flush();

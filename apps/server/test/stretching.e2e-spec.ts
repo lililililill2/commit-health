@@ -14,12 +14,16 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 const origin = 'http://localhost:3000';
 const id = 'f4f628e2-8bee-4adb-9cf2-7a83224af879';
 const owner = 'owner';
-const path = `/api/activity/sessions/${id}/stretching-complete`;
+const sessionPath = `/api/activity/sessions/${id}`;
+const path = `${sessionPath}/stretching-complete`;
+const meditationPath = `${sessionPath}/meditation-complete`;
 const good = { leftMs: 10_000, rightMs: 10_000 };
 const csrfToken = 'c'.repeat(43);
 const start = Date.parse('2026-11-23T11:00:00.000Z');
 let now: Date;
+let lastSeenAt: Date;
 let completed: boolean;
+let durationSeconds: number;
 let kind: 'SHOULDER_CROSS_BODY' | 'MEDITATION';
 
 const sessions = {
@@ -38,21 +42,32 @@ const sessions = {
       status: completed ? 'COMPLETED' : 'RUNNING',
       recordDate: new Date('2026-11-23'),
       startedAt: new Date(start),
-      lastSeenAt: new Date(start + 18_000),
+      lastSeenAt,
     };
   }),
-  updateMany: jest.fn(({ where }: { where: { id?: string; userId: string }; data: unknown }) => {
-    if (where.id !== id || where.userId !== owner || completed) return { count: 0 };
-    completed = true;
-    return { count: 1 };
-  }),
+  updateMany: jest.fn(
+    ({
+      where,
+      data,
+    }: {
+      where: { id?: string; userId: string };
+      data: { status: string; durationSeconds?: number };
+    }) => {
+      if (where.id !== id || where.userId !== owner || completed) return { count: 0 };
+      if (data.status === 'COMPLETED') {
+        completed = true;
+        durationSeconds = data.durationSeconds ?? 0;
+      }
+      return { count: 1 };
+    },
+  ),
   groupBy: jest.fn(() =>
-    completed ? [{ kind, _count: { _all: 1 }, _sum: { durationSeconds: 20 } }] : [],
+    completed ? [{ kind, _count: { _all: 1 }, _sum: { durationSeconds } }] : [],
   ),
 };
 const transaction = { activitySession: sessions, $queryRaw: () => [] };
 
-describe('Stretching completion', () => {
+describe('Guided activity completion', () => {
   let app: INestApplication<Server>;
   const client = () => request(app.getHttpServer());
   const authenticate = (test: request.Test, user = 'a') =>
@@ -91,7 +106,9 @@ describe('Stretching completion', () => {
 
   beforeEach(() => {
     now = new Date(start + 22_000);
+    lastSeenAt = new Date(start + 18_000);
     completed = false;
+    durationSeconds = 0;
     kind = 'SHOULDER_CROSS_BODY';
     jest.clearAllMocks();
   });
@@ -157,5 +174,55 @@ describe('Stretching completion', () => {
         data: expect.objectContaining({ status: 'COMPLETED', durationSeconds: 20 }),
       }),
     );
+  });
+
+  describe('Meditation', () => {
+    const evidence = { playedSeconds: 180 };
+
+    beforeEach(() => {
+      kind = 'MEDITATION';
+      now = new Date(start + 180_000);
+      lastSeenAt = new Date(start + 176_000);
+    });
+
+    it('requires auth, CSRF, ownership, and the meditation endpoint', async () => {
+      await client().post(meditationPath).send(evidence).expect(401);
+      await authenticate(client().post(meditationPath)).send(evidence).expect(403);
+      await write(client().post(meditationPath), 'b').send(evidence).expect(404);
+      await write(client().post(`${sessionPath}/complete`))
+        .send({})
+        .expect(400);
+      expect(completed).toBe(false);
+    });
+
+    it('rejects missing, short, or impossible playback time', async () => {
+      for (const body of [
+        {},
+        { playedSeconds: 179 },
+        { playedSeconds: 180.5 },
+        { playedSeconds: 181 },
+      ]) {
+        await write(client().post(meditationPath)).send(body).expect(400);
+      }
+      now = new Date(start + 179_999);
+      await write(client().post(meditationPath)).send(evidence).expect(400);
+      expect(completed).toBe(false);
+    });
+
+    it('records the threshold once and returns the same daily totals on a retry', async () => {
+      const responses = await Promise.all([
+        write(client().post(meditationPath)).send(evidence).expect(201),
+        write(client().post(meditationPath)).send(evidence).expect(201),
+      ]);
+      for (const response of responses) {
+        const body: unknown = response.body;
+        expect(body).toMatchObject({ meditation: { count: 1, seconds: 180 } });
+      }
+      expect(
+        sessions.updateMany.mock.results.filter(
+          (result) => result.type === 'return' && result.value.count === 1,
+        ),
+      ).toHaveLength(1);
+    });
   });
 });

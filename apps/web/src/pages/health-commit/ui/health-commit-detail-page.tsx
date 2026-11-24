@@ -1,11 +1,20 @@
 import Link from 'next/link';
 
 import { SleepRecordForm } from '@/features/record-sleep';
-import { ActivityTimer, ConditionForm, StretchingPanel } from '@/features/record-activity';
+import {
+  ActivityTimer,
+  ConditionForm,
+  MeditationPanel,
+  StretchingPanel,
+} from '@/features/record-activity';
+import { CaffeineRecordForm } from '@/features/record-caffeine';
+import { MealPanel } from '@/features/record-meal';
 
 import type { CommitCategory } from '../model/commit-category';
 
 export function HealthCommitDetailPage({ category }: { category: CommitCategory }) {
+  if (category.id === 'meditation') return <MeditationPanel />;
+
   return (
     <main className="mx-auto w-full max-w-6xl">
       <Link
@@ -18,8 +27,12 @@ export function HealthCommitDetailPage({ category }: { category: CommitCategory 
       <p className="mt-3 text-sm text-white/60">{category.description}</p>
       {category.id === 'sleep' ? (
         <SleepRecordForm />
-      ) : category.id === 'focus' || category.id === 'meditation' ? (
-        <ActivityTimer kind={category.id} />
+      ) : category.id === 'caffeine' ? (
+        <CaffeineRecordForm />
+      ) : category.id === 'meals' ? (
+        <MealPanel />
+      ) : category.id === 'focus' ? (
+        <ActivityTimer />
       ) : category.id === 'condition' ? (
         <ConditionForm />
       ) : category.id === 'stretching' ? (
