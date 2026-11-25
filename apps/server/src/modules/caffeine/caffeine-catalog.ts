@@ -17,6 +17,7 @@ const megaCoffee = `${mega}?category=1&menu_category1=1&menu_category2=1`;
 const redBull = 'https://www.redbull.com/kr-ko/energydrink/products';
 const ediyaAmericano = `https://www.ediya.com/contents/drink.html?chked_val=12%2C&skeyword=${encodeURIComponent('아메리카노')}`;
 const dongAPharm = 'https://www.dapharm.com/ko/brand/product';
+const minimumCatalogCaffeineMg = 70;
 
 // Korean menu values for the stated serving, checked 2026-11-23. Keep IDs stable across revisions.
 export const caffeineCatalog = [
@@ -160,4 +161,4 @@ export const caffeineCatalog = [
   ...products('코카콜라', 'https://www.coca-cola.com/kr/ko/brands/coca-cola/products', [
     ['coca-cola-zero-zero-350', '제로제로', '1캔 · 350 mL', 0],
   ]),
-];
+].filter(({ caffeineMg }) => caffeineMg >= minimumCatalogCaffeineMg);

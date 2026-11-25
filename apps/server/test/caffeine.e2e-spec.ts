@@ -18,7 +18,7 @@ const sessionToken = 'a'.repeat(43);
 const csrfToken = 'b'.repeat(43);
 const userId = 'session-user';
 const recordId = 'f4f628e2-8bee-4adb-9cf2-7a83224af879';
-const catalogId = 'red-bull-original-250';
+const catalogId = 'hot6-zero-250';
 const today = () => koreanDay(new Date()).recordDate;
 
 const records = {
@@ -69,13 +69,19 @@ describe('Caffeine records', () => {
 
   it('uses the selected serving from the catalog and rejects overrides', async () => {
     const date = today();
-    await session(client().get(`${url}/catalog`))
+    const response = await session(client().get(`${url}/catalog`))
       .expect(200)
       .expect('Cache-Control', 'no-store');
+    const products = response.body as { id: string; caffeineMg: number }[];
+    expect(products).toContainEqual(expect.objectContaining({ id: catalogId, caffeineMg: 70 }));
+    expect(products.every((product) => product.caffeineMg >= 70)).toBe(true);
     await write(client().post(url))
       .send({ recordDate: date, catalogId, caffeineMg: 1 })
       .expect(400);
     await write(client().post(url)).send({ recordDate: date, catalogId: 'unknown' }).expect(400);
+    await write(client().post(url))
+      .send({ recordDate: date, catalogId: 'red-bull-original-250' })
+      .expect(400);
     await write(client().post(url)).send({ recordDate: date, catalogId }).expect(204);
     expect(records.create).toHaveBeenCalledTimes(1);
     expect(records.create).toHaveBeenCalledWith({
@@ -83,9 +89,9 @@ describe('Caffeine records', () => {
         userId,
         recordDate: new Date(date),
         catalogId,
-        drinkName: '레드불 에너지 드링크',
+        drinkName: '핫식스 제로',
         servingLabel: '1캔 · 250 mL',
-        caffeineMg: new Prisma.Decimal(62.5),
+        caffeineMg: new Prisma.Decimal(70),
         consumedAt: expect.any(Date),
       },
     });
