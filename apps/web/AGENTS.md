@@ -11,6 +11,12 @@ Apply alongside the root [AGENTS.md](../../AGENTS.md).
 - Compute derived values directly. Keep Effects with cleanup for external events, timers, and WebGL synchronization; do not remove necessary synchronization just to reduce Effects.
 - Use Tailwind and `shared/lib`'s `cn()`. Pretendard and custom variants are defined in `src/app/styles/globals.css`.
 
+## Visual consistency
+
+- Use the nearest existing screen as the visual reference before editing UI. Match its layout shell, page title, spacing, surfaces, form controls, focus states, and color palette. For daily records, start from the shared health-commit detail page and compare with the caffeine and sleep screens.
+- Inherit the parent theme and Pretendard. Do not add a separate page background, theme override, accent palette, or decorative styles without a request for a redesign. Keep later features out of the current navigation and screen.
+- Compare the edited screen with the reference on desktop and mobile in a browser when available. Report any visual check that could not be run.
+
 ## Authentication and 3D
 
 - Reuse `entities/session` APIs and query keys. Only 401 means unauthenticated; distinguish network/5xx failures. Keep CSRF in memory and sessions in HttpOnly cookies.

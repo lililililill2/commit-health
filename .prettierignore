@@ -4,6 +4,8 @@ node_modules/
 pnpm-lock.yaml
 .next/
 dist/
+apps/server/src/modules/meals/foods-final.json
+apps/web/public/food-catalog/
 coverage/
 apps/server/src/generated/
 apps/web/next-env.d.ts

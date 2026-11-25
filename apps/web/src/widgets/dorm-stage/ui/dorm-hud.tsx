@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+import { useTodayMealProgress } from '@/entities/meal';
+import { useSession } from '@/entities/session';
 import { cn } from '@/shared/lib';
 
 function Icon({ children, className }: { children: ReactNode; className?: string }) {
@@ -79,6 +81,9 @@ const quests = [
 ];
 
 export function DormHud() {
+  const session = useSession();
+  const { data: progress } = useTodayMealProgress(session.data?.user.id);
+  const count = progress ? Math.min(progress.dailyRecordCount, 3) : undefined;
   return (
     <div className="relative min-h-0 min-w-0">
       <nav
@@ -134,10 +139,23 @@ export function DormHud() {
                 key={quest.id}
                 className="flex items-start gap-2.5 text-sm leading-[1.65] break-keep text-white/92 mobile:gap-[7px] mobile:text-xs"
               >
-                <Icon className="mt-0.5 size-[19px] shrink-0 opacity-80 mobile:size-4">
+                <Icon
+                  className={cn(
+                    'mt-0.5 size-[19px] shrink-0 opacity-80 mobile:size-4',
+                    quest.id === 'daily-record' && count === 3 && 'text-emerald-300',
+                  )}
+                >
                   <circle cx="12" cy="12" r="8" />
+                  {quest.id === 'daily-record' && count === 3 && <path d="m8.5 12 2.5 2.5 4.5-5" />}
                 </Icon>
-                <span>{quest.label}</span>
+                <span>
+                  {quest.label}
+                  {quest.id === 'daily-record' && count !== undefined && (
+                    <span className="ml-1 whitespace-nowrap">
+                      {count === 3 ? '완료' : `${count}/3`}
+                    </span>
+                  )}
+                </span>
               </li>
             ))}
           </ul>

@@ -12,9 +12,15 @@
     },
     "@commit-health/web#build": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*", "!next-env.d.ts"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/server/src/modules/meals/foods-final.json",
+        "$TURBO_ROOT$/apps/server/src/modules/meals/serving-references.json",
+        ".env*",
+        "!next-env.d.ts"
+      ],
       "env": ["NEXT_PUBLIC_*", "API_SERVER_ORIGIN"],
-      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "public/food-catalog/**"]
     },
     "@commit-health/server#build": {
       "dependsOn": ["^build", "prisma:generate"],
@@ -42,6 +48,7 @@
       "persistent": true,
       "passThroughEnv": [
         "DATABASE_URL",
+        "NEIS_API_KEY",
         "GOOGLE_*",
         "FRONTEND_URL",
         "CORS_ORIGIN",

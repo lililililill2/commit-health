@@ -17,6 +17,10 @@ class Environment {
   @IsString()
   DATABASE_URL?: string;
 
+  @IsOptional()
+  @IsString()
+  NEIS_API_KEY?: string;
+
   @IsString()
   GOOGLE_CLIENT_ID: string = '';
 

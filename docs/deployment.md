@@ -94,7 +94,7 @@ Prisma 7 CLI는 `DATABASE_URL_UNPOOLED`가 있으면 사용하고, 없거나 빈
 테스트 DB는 별도 `prisma.test.config.ts`와 `TEST_DATABASE_URL`을 사용합니다.
 빌드·서버 시작에는 `migrate deploy`를 추가하지 않습니다. 운영 마이그레이션은 승인 후 한 번의 별도 작업으로 실행합니다.
 
-저장소의 마이그레이션은 `20261026015130_google_auth` 하나입니다.
+아래 인증 테이블 검증은 최초 Google 로그인 마이그레이션 기준입니다. 현재 전체 대기 목록은 `prisma migrate status`로 확인합니다.
 `User`, `Session`, `OAuthAttempt` 테이블, Google sub 유니크 제약, 세션 외래키와 조회 인덱스를 생성합니다.
 기존 테이블/데이터를 삭제하는 SQL은 없습니다. 단, 운영 DB가 이미 적용했는지는 별도로 확인해야 합니다.
 Neon 연동만으로 이 테이블들이 생성되지는 않습니다.
@@ -135,7 +135,7 @@ Neon 연동만으로 이 테이블들이 생성되지는 않습니다.
    pnpm --filter @commit-health/server exec node --env-file=.env.production ./node_modules/prisma/build/index.js migrate status
    ```
 
-   빈 DB라면 위 마이그레이션 하나가 필요합니다. 이미 완료된 이력이 있으면 다시 적용할 항목이 없습니다.
+   빈 DB라면 저장소의 마이그레이션 전체가 필요합니다. 이미 완료된 이력은 건너뛰고 대기 중인 항목만 적용합니다.
    테이블만 존재하고 이력이 없거나 실패/미완료 이력이 있으면 중단하고 원인을 확인합니다.
    `migrate reset`, `migrate dev`, `db push`, 임의의 `migrate resolve`는 운영에서 실행하지 않습니다.
 
@@ -157,6 +157,12 @@ Neon 연동만으로 이 테이블들이 생성되지는 않습니다.
 8. 실제 Google 로그인으로 신규 사용자 생성, 재로그인, 새로고침 복원, 로그아웃과 잘못된 콜백 처리를 확인합니다.
    쿠키가 웹 도메인에 `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`로 설정되는지도 확인합니다.
    코드·토큰이 포함된 콜백 URL이나 시크릿을 로그/스크린샷/문서에 남기지 않습니다.
+
+## 어깨 스트레칭 모델
+
+- 새 API를 배포하기 전에 대상 환경 DB에 `20261123010000_shoulder_stretching` 마이그레이션을 적용합니다. 기존 `ActivityKind`에 값 하나를 추가합니다.
+- 웹은 기본 공개 모델과 `left`, `right`, `default` 매핑을 사용합니다. 기존 공개 모델 내보내기의 `defalt` 라벨도 기본 자세로 인식합니다. 모델을 교체할 때는 [웹 환경변수 예시](../apps/web/.env.example)의 모델 주소와 `metadata.json`에 있는 클래스 세 값을 함께 설정하고 다시 빌드합니다. 학습에 미러 영상을 사용하지 않았다면 `NEXT_PUBLIC_STRETCH_POSE_FLIP_INPUT=false`로 설정합니다.
+- 카메라를 사용할 페이지는 HTTPS 또는 localhost에서 열어야 합니다. 브라우저가 모델의 `metadata.json`, `model.json`, 가중치 파일을 CORS로 내려받을 수 있어야 합니다. 별도 CSP가 있다면 모델 호스트와 PoseNet 가중치를 제공하는 `https://storage.googleapis.com` 연결을 허용합니다. 카메라 프레임은 브라우저에서만 처리합니다.
 
 ## Push 없이 배포할 때
 

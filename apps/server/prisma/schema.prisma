@@ -9,11 +9,49 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid()) @db.Uuid
-  googleSub String    @unique @db.VarChar(255)
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
-  sessions  Session[]
+  id               String            @id @default(uuid()) @db.Uuid
+  googleSub        String            @unique @db.VarChar(255)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+  sessions         Session[]
+  sleepRecords     SleepRecord[]
+  conditionRecords ConditionRecord[]
+  activitySessions ActivitySession[]
+  caffeineRecords  CaffeineRecord[]
+  mealRecords      MealRecord[]
+  school           UserSchool?
+}
+
+enum MealKind {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+model MealRecord {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  recordDate DateTime @db.Date
+  kind       MealKind
+  items      Json
+  note       String   @default("") @db.VarChar(500)
+  revision   Int      @default(1)
+  requestId  String   @db.Uuid
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recordDate, kind])
+}
+
+model UserSchool {
+  userId     String @id @db.Uuid
+  officeCode String @db.VarChar(3)
+  schoolCode String @db.VarChar(7)
+  name       String @db.VarChar(120)
+  region     String @db.VarChar(200)
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Session {
@@ -36,4 +74,69 @@ model OAuthAttempt {
   expiresAt    DateTime @db.Timestamptz(3)
 
   @@index([expiresAt])
+}
+
+model SleepRecord {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  recordDate      DateTime @db.Date
+  bedtime         DateTime @db.Timestamptz(3)
+  wakeTime        DateTime @db.Timestamptz(3)
+  durationMinutes Int
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recordDate])
+}
+
+model CaffeineRecord {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  recordDate   DateTime @db.Date
+  drinkName    String   @db.VarChar(100)
+  catalogId    String?  @db.VarChar(100)
+  servingLabel String?  @db.VarChar(80)
+  caffeineMg   Decimal  @db.Decimal(6, 2)
+  consumedAt   DateTime @db.Timestamptz(3)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordDate, consumedAt])
+}
+
+model ConditionRecord {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  recordDate DateTime @db.Date
+  score      Int
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recordDate])
+}
+
+enum ActivityKind {
+  FOCUS
+  MEDITATION
+  SHOULDER_CROSS_BODY
+}
+
+enum ActivityStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model ActivitySession {
+  id              String         @id @default(uuid()) @db.Uuid
+  userId          String         @db.Uuid
+  recordDate      DateTime       @db.Date
+  kind            ActivityKind
+  status          ActivityStatus @default(RUNNING)
+  startedAt       DateTime       @db.Timestamptz(3)
+  lastSeenAt      DateTime       @db.Timestamptz(3)
+  endedAt         DateTime?      @db.Timestamptz(3)
+  durationSeconds Int            @default(0)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordDate, status])
 }

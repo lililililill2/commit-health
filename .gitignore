@@ -6,6 +6,7 @@ node_modules/
 .next/
 out/
 dist/
+apps/web/public/food-catalog/
 coverage/
 *.tsbuildinfo
 apps/server/src/generated/

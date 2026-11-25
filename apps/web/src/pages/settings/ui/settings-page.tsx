@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { LogoutButton } from '@/features/auth';
+import { ResetTodayRecords } from '@/features/reset-today-records';
 
 export function SettingsPage() {
   return (
@@ -14,6 +15,7 @@ export function SettingsPage() {
       <h1 className="mt-8 text-2xl font-medium">설정</h1>
       <div className="mt-10 max-w-xs">
         <LogoutButton />
+        {process.env.NODE_ENV === 'development' && <ResetTodayRecords />}
       </div>
     </main>
   );
