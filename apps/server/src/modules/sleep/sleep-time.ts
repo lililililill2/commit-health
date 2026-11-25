@@ -10,6 +10,8 @@ export function sleepWindow(recordDate: string, bedtime: string, wakeTime: strin
   if (bedtime === wakeTime)
     throw new BadRequestException('잠든 시간과 일어난 시간을 다르게 선택해 주세요.');
   const wakeAt = new Date(`${recordDate}T${wakeTime}:00+09:00`);
+  if (wakeAt > now)
+    throw new BadRequestException('일어난 시간이 현재보다 늦어요. 시간을 다시 확인해 주세요.');
   const bedAt = new Date(`${recordDate}T${bedtime}:00+09:00`);
   if (bedAt > wakeAt) bedAt.setTime(bedAt.getTime() - DAY_MS);
   const durationMinutes = (wakeAt.getTime() - bedAt.getTime()) / 60_000;
@@ -17,9 +19,8 @@ export function sleepWindow(recordDate: string, bedtime: string, wakeTime: strin
     !Number.isInteger(durationMinutes) ||
     durationMinutes <= 0 ||
     durationMinutes >= 1_440 ||
-    durationMinutes % 15 !== 0 ||
-    wakeAt > now
+    durationMinutes % 15 !== 0
   )
-    throw new BadRequestException('일어난 시각은 현재 이전의 15분 단위 시간으로 선택해 주세요.');
+    throw new BadRequestException('잠든 시간과 일어난 시간을 확인해 주세요.');
   return { bedtime: bedAt, wakeTime: wakeAt, durationMinutes };
 }

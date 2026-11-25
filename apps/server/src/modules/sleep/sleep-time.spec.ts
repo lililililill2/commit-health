@@ -33,8 +33,14 @@ describe('sleep dates and durations', () => {
     ['07:00', '07:00'],
     ['23:01', '07:01'],
     ['24:00', '07:00'],
-    ['23:00', '12:15'],
-  ])('rejects invalid or future times %s–%s', (bedtime, wakeTime) => {
+  ])('rejects invalid times %s–%s', (bedtime, wakeTime) => {
     expect(() => sleepWindow('2026-11-10', bedtime, wakeTime, now)).toThrow();
+  });
+
+  it('explains that a valid quarter-hour is in the future and accepts the current time', () => {
+    expect(() => sleepWindow('2026-11-10', '23:00', '12:15', now)).toThrow(
+      '일어난 시간이 현재보다 늦어요. 시간을 다시 확인해 주세요.',
+    );
+    expect(sleepWindow('2026-11-10', '23:00', '12:00', now).wakeTime).toEqual(now);
   });
 });
