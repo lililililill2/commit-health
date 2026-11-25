@@ -1,12 +1,7 @@
 import Link from 'next/link';
 
 import { SleepRecordForm } from '@/features/record-sleep';
-import {
-  ActivityTimer,
-  ConditionForm,
-  MeditationPanel,
-  StretchingPanel,
-} from '@/features/record-activity';
+import { ConditionForm, MeditationPanel, StretchingPanel } from '@/features/record-activity';
 import { CaffeineRecordForm } from '@/features/record-caffeine';
 import { MealPanel } from '@/features/record-meal';
 
@@ -31,8 +26,6 @@ export function HealthCommitDetailPage({ category }: { category: CommitCategory 
         <CaffeineRecordForm />
       ) : category.id === 'meals' ? (
         <MealPanel />
-      ) : category.id === 'focus' ? (
-        <ActivityTimer />
       ) : category.id === 'condition' ? (
         <ConditionForm />
       ) : category.id === 'stretching' ? (

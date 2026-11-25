@@ -3,12 +3,10 @@
 import Link from 'next/link';
 
 import { useSession } from '@/entities/session';
-import { formatSleepDuration, useTodaySleep } from '@/entities/sleep';
-import { formatActivityDuration, useTodayActivity } from '@/entities/activity';
-import { formatCaffeineMg, useTodayCaffeine } from '@/entities/caffeine';
+import { useTodaySleep } from '@/entities/sleep';
+import { useTodayActivity } from '@/entities/activity';
+import { useTodayCaffeine } from '@/entities/caffeine';
 import { useTodayMealProgress } from '@/entities/meal';
-
-import { cn } from '@/shared/lib';
 
 import type { CommitCategory } from '../model/commit-category';
 import { AppActivitySummary } from './app-activity-summary';
@@ -19,52 +17,14 @@ export function HealthCommitPage({ categories }: { categories: readonly CommitCa
   const activity = useTodayActivity(session.data?.user.id);
   const caffeine = useTodayCaffeine(session.data?.user.id);
   const meals = useTodayMealProgress(session.data?.user.id);
-  const record = sleep.data?.record;
-  const completed: { id: string; title: string; summary: string }[] = [];
-  if (record)
-    completed.push({
-      id: 'sleep',
-      title: '수면',
-      summary: `약 ${formatSleepDuration(record.durationMinutes)}`,
-    });
-  if (caffeine.data?.records.length)
-    completed.push({
-      id: 'caffeine',
-      title: '카페인',
-      summary: `${caffeine.data.records.length}잔 · ${formatCaffeineMg(caffeine.data.totalMg)}`,
-    });
-  if (meals.data?.mainMeals)
-    completed.push({
-      id: 'meals',
-      title: '식사',
-      summary: `아침·점심·저녁 ${meals.data.mainMeals}/3 기록`,
-    });
-  if (activity.data?.focus.count)
-    completed.push({
-      id: 'focus',
-      title: '집중',
-      summary: `${activity.data.focus.count}회 · ${formatActivityDuration(activity.data.focus.seconds)}`,
-    });
-  if (activity.data?.meditation.count)
-    completed.push({
-      id: 'meditation',
-      title: '명상',
-      summary: `${activity.data.meditation.count}회 · ${formatActivityDuration(activity.data.meditation.seconds)}`,
-    });
-  if (activity.data?.stretching?.count)
-    completed.push({
-      id: 'stretching',
-      title: '스트레칭',
-      summary: `${activity.data.stretching.count}회 · ${formatActivityDuration(activity.data.stretching.seconds)}`,
-    });
-  if (activity.data?.condition)
-    completed.push({
-      id: 'condition',
-      title: '컨디션',
-      summary: `${activity.data.condition.score} / 100 · 오늘 수정 가능`,
-    });
-  const completedIds = new Set(completed.map((item) => item.id));
-  const pending = categories.filter((category) => !completedIds.has(category.id));
+  const completed: Record<string, boolean> = {
+    sleep: Boolean(sleep.data?.record),
+    caffeine: Boolean(caffeine.data?.records.length),
+    meals: Boolean(meals.data?.mainMeals),
+    meditation: Boolean(activity.data?.meditation.count),
+    stretching: Boolean(activity.data?.stretching?.count),
+    condition: Boolean(activity.data?.condition),
+  };
   const failed =
     (sleep.isError && !sleep.data) ||
     (activity.isError && !activity.data) ||
@@ -99,53 +59,25 @@ export function HealthCommitPage({ categories }: { categories: readonly CommitCa
           </button>
         </p>
       )}
-      <ul className="grid list-none grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {pending.map((category) => (
+      <ul className="grid list-none grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+        {categories.map((category) => (
           <li key={category.id}>
             <Link
               href={`/commit/${category.id}`}
-              className={cn(
-                'flex h-full min-h-36 items-start justify-between gap-4 rounded-xl border border-white/20 bg-white/5 p-5',
-                'transition-colors hover:border-[#7db8ff] hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#7db8ff]',
-              )}
+              className="flex h-full min-h-36 items-start justify-between gap-2 rounded-xl border border-white/20 bg-white/5 p-3 transition-colors hover:border-[#7db8ff] hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#7db8ff] sm:gap-4 sm:p-5"
             >
-              <div>
-                <h2 className="text-base font-medium">{category.title}</h2>
-                <p className="mt-3 text-sm leading-6 break-keep text-white/60">
+              <div className="min-w-0">
+                <h2 className="text-base font-medium">
+                  {category.title}
+                  {completed[category.id] && <span className="sr-only"> 완료</span>}
+                </h2>
+                <p className="mt-3 text-sm leading-6 wrap-anywhere break-keep text-white/60">
                   {category.description}
                 </p>
               </div>
-              <span aria-hidden="true" className="text-white/50">
-                →
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-      <section aria-labelledby="completed-heading" className="mt-10">
-        <h2 id="completed-heading" className="text-lg font-medium">
-          완료한 항목
-        </h2>
-        {completed.length > 0 ? (
-          <ul className="mt-4 grid list-none gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {completed.map((item) => (
-              <li key={item.id}>
-                <Link
-                  href={`/commit/${item.id}`}
-                  className="flex min-h-36 items-start justify-between gap-4 rounded-xl border border-emerald-400/40 bg-emerald-400/5 p-5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-300"
-                >
-                  <div>
-                    <h3 className="font-medium">
-                      {item.title} <span className="sr-only">완료</span>
-                    </h3>
-                    <p className="mt-3 text-sm text-white/70">{item.summary}</p>
-                  </div>
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    className="size-6 shrink-0 text-emerald-400"
-                  >
+              <span aria-hidden="true" className="flex size-6 shrink-0 items-center justify-center">
+                {completed[category.id] ? (
+                  <svg viewBox="0 0 24 24" fill="none" className="size-6 text-emerald-400">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
                     <path
                       d="m7 12 3 3 7-7"
@@ -155,20 +87,14 @@ export function HealthCommitPage({ categories }: { categories: readonly CommitCa
                       strokeLinejoin="round"
                     />
                   </svg>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-4 text-sm text-white/50">
-            {sleep.isPending || activity.isPending || caffeine.isPending || meals.isPending
-              ? '오늘의 기록을 불러오는 중…'
-              : failed
-                ? '기록 상태를 확인해 주세요.'
-                : '아직 완료한 항목이 없어요.'}
-          </p>
-        )}
-      </section>
+                ) : (
+                  <span className="text-white/50">→</span>
+                )}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </main>
   );
 }
