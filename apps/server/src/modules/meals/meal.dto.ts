@@ -1,7 +1,9 @@
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNumber,
@@ -84,13 +86,7 @@ class MealItemDto {
   name?: string;
 }
 
-export class SaveMealDto {
-  @IsUUID('4')
-  requestId!: string;
-
-  @Matches(datePattern)
-  date!: string;
-
+class MealEntryDto {
   @IsIn(mealKinds)
   kind!: MealKind;
 
@@ -109,6 +105,49 @@ export class SaveMealDto {
   @ValidateNested()
   @Type(() => SchoolMealDto)
   school?: SchoolMealDto;
+}
+
+export class SaveMealDto extends MealEntryDto {
+  @IsUUID('4')
+  requestId!: string;
+
+  @Matches(datePattern)
+  date!: string;
+}
+
+class MealRevisionDto {
+  @IsUUID('4')
+  id!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(2147483647)
+  revision!: number;
+}
+
+class DayMealDto extends MealEntryDto {
+  @IsOptional()
+  @IsBoolean()
+  skipped?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => MealRevisionDto)
+  previous?: MealRevisionDto;
+}
+
+export class SaveMealDayDto extends MealDateDto {
+  @IsUUID('4')
+  requestId!: string;
+
+  @IsArray()
+  @ArrayMinSize(3)
+  @ArrayMaxSize(4)
+  @IsObject({ each: true })
+  @ValidateNested({ each: true })
+  @Type(() => DayMealDto)
+  meals!: DayMealDto[];
 }
 
 export class UpdateMealDto extends SaveMealDto {

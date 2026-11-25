@@ -10,7 +10,13 @@ import { koreanDay } from '../../common/korean-day.js';
 import { Prisma, type MealRecord } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { catalogById, catalogVersion, servingById } from './meal-catalog.js';
-import type { SaveMealDto, SchoolDto } from './meal.dto.js';
+import {
+  mealKinds,
+  type MealKind,
+  type SaveMealDayDto,
+  type SaveMealDto,
+  type SchoolDto,
+} from './meal.dto.js';
 import { NeisService } from './neis.service.js';
 
 type PortionSnapshot = {
@@ -22,7 +28,13 @@ type PortionSnapshot = {
 
 type MealItem =
   | ({ id: string; source: 'MANUAL'; name: string } & PortionSnapshot)
-  | { id: string; source: 'SCHOOL'; name: string; schoolName: string }
+  | {
+      id: string;
+      source: 'SCHOOL';
+      name: string;
+      schoolName: string;
+      schoolMealKcal?: number | null;
+    }
   | ({
       id: string;
       source: 'CATALOG';
@@ -149,13 +161,15 @@ export class MealService {
     const where = { userId, recordDate: mealDate(day.recordDate) };
     const db = this.prisma.client;
     const [meals, sleep, condition, activities, caffeine] = await Promise.all([
-      db.mealRecord.findMany({ where, select: { kind: true } }),
+      db.mealRecord.findMany({ where, select: { kind: true, items: true } }),
       db.sleepRecord.findFirst({ where, select: { id: true } }),
       db.conditionRecord.findFirst({ where, select: { id: true } }),
       db.activitySession.groupBy({ by: ['kind'], where: { ...where, status: 'COMPLETED' } }),
       db.caffeineRecord.findFirst({ where, select: { id: true } }),
     ]);
-    const mainMeals = meals.filter(({ kind }) => kind !== 'SNACK').length;
+    const mainMeals = meals.filter(
+      ({ kind, items }) => kind !== 'SNACK' && asItems(items).length > 0,
+    ).length;
     return {
       ...day,
       mealCount: meals.length,
@@ -293,6 +307,7 @@ export class MealService {
           source: 'SCHOOL',
           name,
           schoolName: school.name,
+          schoolMealKcal: menu.mealKcal,
         })),
       );
     }
@@ -340,6 +355,85 @@ export class MealService {
     const changed = await db.findFirst({ where: edit ? { ...slot, id: edit.id } : slot });
     if (changed?.requestId === input.requestId) return view(changed);
     throw new ConflictException('식사 기록이 변경됐어요. 목록을 새로 확인해 주세요.');
+  }
+
+  async saveDay(userId: string, input: SaveMealDayDto): Promise<void> {
+    const recordDate = mealDate(input.date);
+    if (input.date > koreanDay(new Date()).recordDate)
+      throw new BadRequestException('미래 날짜에는 식사를 기록할 수 없어요.');
+    const byKind = new Map(input.meals.map((entry) => [entry.kind, entry]));
+    if (
+      byKind.size !== input.meals.length ||
+      mealKinds.some((kind) => kind !== 'SNACK' && !byKind.has(kind))
+    )
+      throw new BadRequestException('아침·점심·저녁을 각각 기록해 주세요.');
+
+    const db = this.prisma.client;
+    const scope = { userId, recordDate };
+    const records = new Map(
+      (await db.mealRecord.findMany({ where: scope })).map((record) => [record.kind, record]),
+    );
+    const conflict = () =>
+      new ConflictException(
+        '다른 화면에서 기록이 바뀌었어요. 초안을 되돌린 뒤 다시 확인해 주세요.',
+      );
+    const writes: {
+      kind: MealKind;
+      current: MealRecord | undefined;
+      items: MealItem[];
+      removeSnack: boolean;
+    }[] = [];
+
+    // Resolve NEIS and validate all entries before opening a database transaction.
+    for (const kind of mealKinds) {
+      const entry = byKind.get(kind);
+      if (!entry) continue;
+      const current = records.get(kind);
+      const empty = !entry.items.length && !entry.school;
+      const removeSnack = kind === 'SNACK' && empty && !entry.skipped;
+      if (entry.skipped ? kind === 'SNACK' || !empty : empty && !removeSnack)
+        throw new BadRequestException('먹은 음식 또는 안 먹었어요를 선택해 주세요.');
+      if (current?.requestId === input.requestId || (removeSnack && !current)) continue;
+      if (current?.id !== entry.previous?.id || current?.revision !== entry.previous?.revision)
+        throw conflict();
+
+      const items = empty
+        ? []
+        : await this.snapshot(
+            userId,
+            {
+              ...entry,
+              date: input.date,
+              requestId: input.requestId,
+            },
+            current,
+          );
+      writes.push({ kind, current, items, removeSnack });
+    }
+    if (!writes.length) return;
+
+    try {
+      await db.$transaction(async (tx) => {
+        for (const { kind, current, items, removeSnack } of writes) {
+          const data = { items, requestId: input.requestId };
+          if (current) {
+            const where = { ...scope, kind, id: current.id, revision: current.revision };
+            const result = removeSnack
+              ? await tx.mealRecord.deleteMany({ where })
+              : await tx.mealRecord.updateMany({
+                  where,
+                  data: { ...data, revision: { increment: 1 } },
+                });
+            if (result.count !== 1) throw conflict();
+          } else {
+            await tx.mealRecord.create({ data: { ...scope, kind, ...data } });
+          }
+        }
+      });
+    } catch (error) {
+      if (isUniqueConflict(error)) throw conflict();
+      throw error;
+    }
   }
 
   async remove(userId: string, id: string, revision: number) {

@@ -23,6 +23,7 @@ const date = '2024-02-29';
 const school = { officeCode: 'F10', schoolCode: '7380292', name: '테스트고등학교', region: '광주' };
 const record = { id, recordDate: new Date(date), kind: 'LUNCH', revision: 1, note: '', items: [] };
 const findFirst = jest.fn<(query: unknown) => Promise<unknown>>();
+const findMany = jest.fn<(query: unknown) => Promise<unknown[]>>();
 const create = jest.fn<({ data }: { data: object }) => Promise<unknown>>(({ data }) =>
   Promise.resolve({ ...record, ...data }),
 );
@@ -32,7 +33,25 @@ const updateManyAndReturn = jest.fn<({ data }: { data: object }) => Promise<unkn
 const deleteMany = jest
   .fn<(query: unknown) => Promise<{ count: number }>>()
   .mockResolvedValue({ count: 0 });
-const neisMenus = jest.fn().mockReturnValue([{ kind: 'LUNCH', items: ['쌀밥', '된장국'] }]);
+const neisMenus = jest
+  .fn()
+  .mockReturnValue([{ kind: 'LUNCH', items: ['쌀밥', '된장국'], mealKcal: 907.9 }]);
+const neisSchools = jest.fn().mockReturnValue([school]);
+const upsertSchool = jest.fn().mockReturnValue(school);
+const updateMany = jest
+  .fn<(query: unknown) => Promise<{ count: number }>>()
+  .mockResolvedValue({ count: 1 });
+const writeDay = jest.fn(
+  (
+    action: (tx: {
+      mealRecord: {
+        create: typeof create;
+        updateMany: typeof updateMany;
+        deleteMany: typeof deleteMany;
+      };
+    }) => Promise<void>,
+  ) => action({ mealRecord: { create, updateMany, deleteMany } }),
+);
 
 function input(items: object[] = [{ name: '  오므라이스  ' }]) {
   return { date, kind: 'LUNCH', requestId: randomUUID(), items };
@@ -57,12 +76,13 @@ describe('Meal records', () => {
       .overrideProvider(PrismaService)
       .useValue({
         client: {
-          mealRecord: { findFirst, create, updateManyAndReturn, deleteMany },
-          userSchool: { findUnique: () => Promise.resolve(school) },
+          mealRecord: { findFirst, findMany, create, updateManyAndReturn, deleteMany },
+          userSchool: { findUnique: () => Promise.resolve(school), upsert: upsertSchool },
+          $transaction: writeDay,
         },
       })
       .overrideProvider(NeisService)
-      .useValue({ menus: neisMenus })
+      .useValue({ menus: neisMenus, schools: neisSchools })
       .compile();
     app = moduleRef.createNestApplication<INestApplication<Server>>();
     configureApp(app);
@@ -72,8 +92,74 @@ describe('Meal records', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     findFirst.mockReset().mockResolvedValue(null);
+    findMany.mockReset().mockResolvedValue([]);
   });
   afterAll(() => app?.close());
+
+  it('saves a full day in one transaction, with skipped meals and optional snacks', async () => {
+    const payload = {
+      requestId: randomUUID(),
+      date,
+      meals: [
+        { kind: 'BREAKFAST', skipped: true, items: [] },
+        { kind: 'LUNCH', items: [{ name: '김밥' }] },
+        { kind: 'DINNER', items: [{ name: '비빔밥' }] },
+      ],
+    };
+    await session(client().put(`${path}/day`))
+      .send(payload)
+      .expect(403);
+    await write(client().put(`${path}/day`))
+      .send({
+        ...payload,
+        meals: [payload.meals[0], payload.meals[1], { kind: 'DINNER', items: [] }],
+      })
+      .expect(400);
+    expect(writeDay).not.toHaveBeenCalled();
+    await write(client().put(`${path}/day`))
+      .send(payload)
+      .expect(204);
+    expect(writeDay).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(3);
+    expect(create).toHaveBeenCalledWith({
+      data: {
+        userId,
+        recordDate: new Date(date),
+        kind: 'BREAKFAST',
+        items: [],
+        requestId: payload.requestId,
+      },
+    });
+    findMany.mockResolvedValue(
+      payload.meals.map(({ kind }) => ({
+        id: randomUUID(),
+        kind,
+        requestId: payload.requestId,
+        revision: 1,
+      })),
+    );
+    await write(client().put(`${path}/day`))
+      .send(payload)
+      .expect(204);
+    expect(writeDay).toHaveBeenCalledTimes(1);
+  });
+
+  it('protects a saved day against edits prepared from stale records', async () => {
+    findMany.mockResolvedValue([{ ...record, requestId: randomUUID(), revision: 2 }]);
+    await write(client().put(`${path}/day`))
+      .send({
+        requestId: randomUUID(),
+        date,
+        meals: [
+          { kind: 'BREAKFAST', skipped: true, items: [] },
+          { kind: 'LUNCH', items: [{ name: '김밥' }], previous: { id, revision: 1 } },
+          { kind: 'DINNER', skipped: true, items: [] },
+        ],
+      })
+      .expect(409);
+    expect(findMany).toHaveBeenCalledWith({ where: { userId, recordDate: new Date(date) } });
+    expect(writeDay).not.toHaveBeenCalled();
+  });
 
   it('requires a session and CSRF and rejects spoofed source or invalid date', async () => {
     await client().get(`${path}?date=${date}`).expect(401);
@@ -85,6 +171,34 @@ describe('Meal records', () => {
       .send({ ...input(), date: '2023-02-29' })
       .expect(400);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('returns school suggestions and connects a selected school to the signed-in account', async () => {
+    const url = `${path}/schools`;
+    await client().get(url).query({ q: '테스트' }).expect(401);
+    await session(client().get(url)).query({ q: '테스트 고' }).expect(200, [school]);
+    expect(neisSchools).toHaveBeenCalledWith('테스트 고');
+
+    const ref = { officeCode: school.officeCode, schoolCode: school.schoolCode };
+    await session(client().put(`${path}/school`))
+      .send(ref)
+      .expect(403);
+    await write(client().put(`${path}/school`))
+      .send(ref)
+      .expect(200, school);
+    expect(upsertSchool).toHaveBeenCalledTimes(1);
+    expect(upsertSchool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId },
+        create: { userId, ...school },
+      }),
+    );
+    await session(client().get(`${path}/school/menus`))
+      .query({ date })
+      .expect(200, {
+        school,
+        meals: [{ kind: 'LUNCH', items: ['쌀밥', '된장국'], mealKcal: 907.9 }],
+      });
   });
 
   it('saves names alone and returns the existing record when the same request is repeated', async () => {
@@ -208,8 +322,8 @@ describe('Meal records', () => {
       .expect(201);
     expect(response.body as unknown).toMatchObject({
       items: [
-        { source: 'SCHOOL', name: '쌀밥', schoolName: school.name },
-        { source: 'SCHOOL', name: '된장국', schoolName: school.name },
+        { source: 'SCHOOL', name: '쌀밥', schoolName: school.name, schoolMealKcal: 907.9 },
+        { source: 'SCHOOL', name: '된장국', schoolName: school.name, schoolMealKcal: 907.9 },
       ],
     });
   });

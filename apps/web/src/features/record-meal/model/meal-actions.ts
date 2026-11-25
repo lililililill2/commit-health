@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 
-import { mealsKey, type MealKind, type MealRecord, type School } from '@/entities/meal';
+import { mealsKey, type MealKind, type School } from '@/entities/meal';
 import { getSession } from '@/entities/session';
 import { apiClient } from '@/shared/api';
 
@@ -11,17 +11,20 @@ export type FoodInput = ({ savedId: string } | { foodId: string } | { name: stri
   kcalPerPortion?: number | null;
 };
 
-export type MealInput = {
-  date: string;
+type DayMealInput = {
   kind: MealKind;
   items: FoodInput[];
-  requestId: string;
   catalogVersion?: string;
+  school?: SchoolRef & { menu: string[] };
+  skipped?: boolean;
+  previous?: { id: string; revision: number };
 };
 
-type MealChange =
-  | { action: 'save'; input: MealInput; edit?: { id: string; revision: number } }
-  | { action: 'delete'; id: string; revision: number };
+export type MealDayInput = {
+  date: string;
+  requestId: string;
+  meals: DayMealInput[];
+};
 
 async function csrf(userId: string) {
   const session = await getSession();
@@ -29,26 +32,13 @@ async function csrf(userId: string) {
   return { 'X-CSRF-Token': session.csrfToken };
 }
 
-export function useMealChange(userId: string) {
+export function useSaveMealDay(userId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     retry: false,
-    mutationFn: async (change: MealChange) => {
+    mutationFn: async (input: MealDayInput) => {
       const headers = await csrf(userId);
-      if (change.action === 'delete') {
-        await apiClient.delete(`meals/${change.id}`, {
-          headers,
-          params: { revision: change.revision },
-        });
-      } else if (change.edit) {
-        await apiClient.put<MealRecord>(
-          `meals/${change.edit.id}`,
-          { ...change.input, revision: change.edit.revision },
-          { headers },
-        );
-      } else {
-        await apiClient.post<MealRecord>('meals', change.input, { headers });
-      }
+      await apiClient.put('meals/day', input, { headers, timeout: 15_000 });
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: mealsKey(userId) }),
   });
@@ -64,8 +54,10 @@ export function useSchoolChange(userId: string) {
       await apiClient.delete('meals/school', { headers });
       return null;
     },
-    onSuccess: (school) => {
-      queryClient.setQueryData([...mealsKey(userId), 'school'], school);
+    onSuccess: async (school) => {
+      const schoolKey = [...mealsKey(userId), 'school'];
+      await queryClient.cancelQueries({ queryKey: schoolKey, exact: true });
+      queryClient.setQueryData(schoolKey, school);
       if (!school) queryClient.removeQueries({ queryKey: [...mealsKey(userId), 'menus'] });
       else return queryClient.invalidateQueries({ queryKey: [...mealsKey(userId), 'menus'] });
     },

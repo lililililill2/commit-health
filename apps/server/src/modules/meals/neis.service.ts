@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import type { MealKind, SchoolDto } from './meal.dto.js';
 
 type Row = Record<string, unknown>;
+type SchoolMenu = { kind: Exclude<MealKind, 'SNACK'>; items: string[]; mealKcal: number | null };
 const mealKindByCode: Readonly<Record<string, Exclude<MealKind, 'SNACK'>>> = {
   '1': 'BREAKFAST',
   '2': 'LUNCH',
@@ -39,6 +40,13 @@ function field(row: Row, key: string): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function parseMealKcal(value: string): number | null {
+  const match = /^(\d+(?:,\d{3})*(?:\.\d+)?)\s*kcal$/iu.exec(value);
+  if (!match) return null;
+  const kcal = Number(match[1].replaceAll(',', ''));
+  return Number.isFinite(kcal) ? kcal : null;
+}
+
 export function parseMenu(value: string): string[] {
   return [
     ...new Set(
@@ -58,6 +66,7 @@ export class NeisService {
     endpoint: 'schoolInfo' | 'mealServiceDietInfo',
     params: Record<string, string>,
     pageSize: number,
+    signal = AbortSignal.timeout(3_500),
   ) {
     const key = this.config.get<string>('NEIS_API_KEY')?.trim();
     if (!key) throw new ServiceUnavailableException('학교 급식 연결이 아직 설정되지 않았어요.');
@@ -70,10 +79,10 @@ export class NeisService {
         pSize: String(pageSize),
         ...params,
       }).toString();
+      // NEIS uses Type above and can return HTTP 500 with Accept: application/json.
       const response = await fetch(url, {
-        signal: AbortSignal.timeout(3_500),
+        signal,
         redirect: 'error',
-        headers: { Accept: 'application/json' },
       });
       if (!response.ok) throw new Error('NEIS request failed');
       return readRows(await response.json(), endpoint);
@@ -83,14 +92,23 @@ export class NeisService {
   }
 
   async schools(query: string | SchoolDto) {
-    const rows = await this.rows(
-      'schoolInfo',
+    const name = typeof query === 'string' ? query.normalize('NFKC').trim() : '';
+    const compact = name.replace(/\s+/gu, '');
+    const signal = AbortSignal.timeout(3_500);
+    const rows =
       typeof query === 'string'
-        ? { SCHUL_NM: query }
-        : { ATPT_OFCDC_SC_CODE: query.officeCode, SD_SCHUL_CODE: query.schoolCode },
-      20,
-    );
-    return rows
+        ? await this.rows('schoolInfo', { SCHUL_NM: compact }, 20, signal)
+        : await this.rows(
+            'schoolInfo',
+            { ATPT_OFCDC_SC_CODE: query.officeCode, SD_SCHUL_CODE: query.schoolCode },
+            20,
+            signal,
+          );
+    const candidates =
+      rows.length === 0 && name !== compact
+        ? await this.rows('schoolInfo', { SCHUL_NM: name }, 20, signal)
+        : rows;
+    const schools = candidates
       .map((row) => ({
         officeCode: field(row, 'ATPT_OFCDC_SC_CODE'),
         schoolCode: field(row, 'SD_SCHUL_CODE'),
@@ -105,6 +123,13 @@ export class NeisService {
           school.name.length <= 120 &&
           school.region.length <= 200,
       );
+    if (typeof query !== 'string') return schools;
+    const rank = (schoolName: string) => {
+      const comparable = schoolName.normalize('NFKC').replace(/\s+/gu, '');
+      if (comparable === compact) return 0;
+      return comparable.startsWith(compact) ? 1 : 2;
+    };
+    return schools.sort((a, b) => rank(a.name) - rank(b.name));
   }
 
   async menus(school: SchoolDto, date: string) {
@@ -118,7 +143,7 @@ export class NeisService {
       },
       10,
     );
-    const menus = new Map<MealKind, string[]>();
+    const menus = new Map<SchoolMenu['kind'], SchoolMenu>();
     for (const row of rows) {
       const kind = mealKindByCode[field(row, 'MMEAL_SC_CODE')];
       if (
@@ -129,8 +154,10 @@ export class NeisService {
       )
         continue;
       const items = parseMenu(field(row, 'DDISH_NM'));
-      if (items.length) menus.set(kind, items);
+      if (items.length) {
+        menus.set(kind, { kind, items, mealKcal: parseMealKcal(field(row, 'CAL_INFO')) });
+      }
     }
-    return [...menus].map(([kind, items]) => ({ kind, items }));
+    return [...menus.values()];
   }
 }

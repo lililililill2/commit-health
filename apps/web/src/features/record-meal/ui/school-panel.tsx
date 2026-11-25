@@ -1,13 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   mealLabels,
   useSchool,
   useSchoolMenus,
   useSchoolSearch,
-  type MealKind,
   type School,
   type SchoolMenu,
 } from '@/entities/meal';
@@ -18,21 +17,48 @@ import { mealAlert, mealButton, mealInput, mealMuted } from './meal-styles';
 interface SchoolPanelProps {
   userId: string;
   date: string;
+  kind: SchoolMenu['kind'];
   disabled: boolean;
-  recorded: ReadonlySet<MealKind>;
+  recorded: boolean;
+  availableSlots: number;
   onSelect: (school: School, menu: SchoolMenu) => void;
 }
 
-export function SchoolPanel({ userId, date, disabled, recorded, onSelect }: SchoolPanelProps) {
+export function SchoolPanel({
+  userId,
+  date,
+  kind,
+  disabled,
+  recorded,
+  availableSlots,
+  onSelect,
+}: SchoolPanelProps) {
   const school = useSchool(userId);
   const menus = useSchoolMenus(userId, date, school.data);
   const change = useSchoolChange(userId);
   const [changing, setChanging] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [name, setName] = useState('');
-  const [submitted, setSubmitted] = useState('');
-  const search = useSchoolSearch(userId, submitted);
+  const [settledName, setSettledName] = useState('');
+  const [composing, setComposing] = useState(false);
   const showSearch = changing || school.data === null;
+  const query = name.trim().normalize('NFKC');
+  const hasQuery = showSearch && query.replace(/\s+/gu, '').length >= 2 && !composing;
+  const ready = hasQuery && settledName === query;
+  const search = useSchoolSearch(userId, ready ? settledName : '');
+  const menu = menus.data?.meals.find((meal) => meal.kind === kind);
+
+  useEffect(() => {
+    if (!hasQuery || ready) return;
+    const timer = window.setTimeout(() => setSettledName(query), 300);
+    return () => window.clearTimeout(timer);
+  }, [hasQuery, ready, query]);
+
+  function clearSearch() {
+    setName('');
+    setSettledName('');
+    setComposing(false);
+  }
 
   function select(result: School) {
     change.mutate(
@@ -40,18 +66,14 @@ export function SchoolPanel({ userId, date, disabled, recorded, onSelect }: Scho
       {
         onSuccess: () => {
           setChanging(false);
-          setName('');
-          setSubmitted('');
+          clearSearch();
         },
       },
     );
   }
 
   return (
-    <section
-      aria-labelledby="school-meals-title"
-      className="space-y-3 border-b border-current/15 pb-5"
-    >
+    <section aria-labelledby="school-meals-title" className="space-y-3">
       <h2 id="school-meals-title" className="text-lg font-semibold">
         학교 급식
       </h2>
@@ -75,12 +97,16 @@ export function SchoolPanel({ userId, date, disabled, recorded, onSelect }: Scho
               <span className="font-medium">{school.data.name}</span>{' '}
               <span className={mealMuted}>{school.data.region}</span>
             </p>
+            <span className="text-sm text-emerald-300" role="status">
+              학교 연결됨
+            </span>
             <button
               type="button"
               className={mealButton}
               disabled={disabled || change.isPending}
               onClick={() => {
                 setChanging(!changing);
+                clearSearch();
                 setRemoving(false);
                 change.reset();
               }}
@@ -126,82 +152,91 @@ export function SchoolPanel({ userId, date, disabled, recorded, onSelect }: Scho
               </button>
             </p>
           )}
-          {menus.data?.meals.length === 0 && (
-            <p className={mealMuted}>이 날짜에 등록된 급식이 없어요.</p>
+          {menus.data && !menu && (
+            <p className={mealMuted}>이 날짜에 등록된 {mealLabels[kind]} 급식이 없어요.</p>
           )}
-          {menus.data?.school && menus.data.meals.length > 0 && (
-            <ul className="divide-y divide-current/10">
-              {menus.data.meals.map((menu) => (
-                <li
-                  key={menu.kind}
-                  className="flex flex-wrap items-center gap-x-4 py-2 sm:flex-nowrap"
+          {menus.data?.school && menu && (
+            <div className="space-y-2 border-t border-white/15 pt-3">
+              <p className="font-medium">{mealLabels[kind]} 식단</p>
+              <p className={mealMuted}>{menu.items.join(' · ')}</p>
+              <p className={mealMuted}>
+                {menu.mealKcal == null
+                  ? '학교 제공 열량 정보 없음'
+                  : `학교 제공 한 끼 열량 · ${menu.mealKcal.toLocaleString('ko-KR')} kcal`}
+              </p>
+              {recorded ? (
+                <p className={mealMuted}>급식을 담았어요.</p>
+              ) : menu.items.length > availableSlots ? (
+                <p className={mealMuted}>담은 음식을 줄이면 이 급식을 기록할 수 있어요.</p>
+              ) : (
+                <button
+                  type="button"
+                  className={mealButton}
+                  disabled={disabled || change.isPending}
+                  onClick={() => {
+                    if (menus.data.school) onSelect(menus.data.school, menu);
+                  }}
                 >
-                  <div className="min-w-0 flex-1 basis-full sm:basis-auto">
-                    <p className="font-medium">{mealLabels[menu.kind]}</p>
-                    <p className={mealMuted}>{menu.items.join(' · ')}</p>
-                  </div>
-                  {recorded.has(menu.kind) ? (
-                    <span className={mealMuted}>급식 기록 완료</span>
-                  ) : (
-                    <button
-                      type="button"
-                      className={mealButton}
-                      disabled={disabled || change.isPending}
-                      onClick={() => {
-                        if (menus.data.school) onSelect(menus.data.school, menu);
-                      }}
-                    >
-                      이 급식 먹었어요
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
+                  이 급식 먹었어요
+                </button>
+              )}
+              <a
+                href="https://open.neis.go.kr/"
+                target="_blank"
+                rel="noreferrer"
+                className="block w-fit text-xs text-white/65 underline"
+              >
+                출처 · NEIS 교육정보 개방 포털
+              </a>
+            </div>
           )}
         </>
       )}
       {showSearch && (
         <>
-          <form
-            className="flex items-end gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const query = name.trim();
-              if (query.length < 2) return;
-              if (query === submitted) void search.refetch();
-              else setSubmitted(query);
-            }}
-          >
-            <label className="min-w-0 flex-1 text-sm">
-              학교 이름
-              <input
-                className={mealInput}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="학교 이름을 입력해 주세요"
-                maxLength={60}
-              />
-            </label>
-            <button
-              className={mealButton}
-              disabled={disabled || name.trim().length < 2 || search.isFetching || change.isPending}
-            >
-              검색
-            </button>
-          </form>
-          {submitted && search.isFetching && (
+          <label className="block space-y-1 text-sm">
+            <span>학교 이름</span>
+            <input
+              type="search"
+              className={mealInput}
+              value={name}
+              autoComplete="off"
+              disabled={disabled || change.isPending}
+              onChange={(event) => setName(event.target.value)}
+              onCompositionStart={() => setComposing(true)}
+              onCompositionEnd={(event) => {
+                setComposing(false);
+                setName(event.currentTarget.value);
+              }}
+              placeholder="예: 소프트웨어, 한빛고"
+              maxLength={60}
+            />
+          </label>
+          {change.isPending && (
+            <p role="status" className={mealMuted}>
+              학교 연결 중…
+            </p>
+          )}
+          {hasQuery && (!ready || search.isPending) && (
             <p role="status" className={mealMuted}>
               학교 검색 중…
             </p>
           )}
-          {search.isError && (
+          {ready && search.isError && (
             <p role="alert" className={mealAlert}>
               {mealError(search.error, '학교 검색에 실패했어요.')}
+              <button className={mealButton} type="button" onClick={() => void search.refetch()}>
+                다시 시도
+              </button>
             </p>
           )}
-          {search.data?.length === 0 && <p className={mealMuted}>검색 결과가 없어요.</p>}
-          {search.data && (
-            <ul className="divide-y divide-current/10">
+          {ready && search.data?.length === 0 && (
+            <p className={mealMuted} role="status">
+              검색 결과가 없어요. 학교 이름 일부를 다시 입력해 주세요.
+            </p>
+          )}
+          {ready && search.data && search.data.length > 0 && (
+            <ul className="max-h-52 space-y-1 overflow-y-auto" aria-label="연관 학교 검색 결과">
               {search.data.map((result) => (
                 <li key={`${result.officeCode}-${result.schoolCode}`}>
                   <button
@@ -211,7 +246,7 @@ export function SchoolPanel({ userId, date, disabled, recorded, onSelect }: Scho
                     onClick={() => select(result)}
                   >
                     <span>{result.name}</span>
-                    <span className={mealMuted}>{result.region}</span>
+                    <span className={mealMuted}>{result.region} · 연결</span>
                   </button>
                 </li>
               ))}

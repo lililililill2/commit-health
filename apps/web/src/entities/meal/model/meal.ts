@@ -31,7 +31,7 @@ export type MealItem = { id: string; name: string } & (
       amount?: number | null;
       referenceType?: string;
     } & PortionSnapshot)
-  | { source: 'SCHOOL'; schoolName: string }
+  | { source: 'SCHOOL'; schoolName: string; schoolMealKcal?: number | null }
   | ({ source: 'MANUAL' } & PortionSnapshot)
 );
 
@@ -53,6 +53,7 @@ export interface School {
 export interface SchoolMenu {
   kind: Exclude<MealKind, 'SNACK'>;
   items: string[];
+  mealKcal: number | null;
 }
 
 export interface HistoryFood {

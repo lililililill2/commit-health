@@ -13,7 +13,14 @@ import {
 } from '@nestjs/common';
 
 import { CurrentUser, type SessionUser } from '../../auth/auth-context.js';
-import { MealDateDto, SaveMealDto, SchoolDto, SchoolSearchDto, UpdateMealDto } from './meal.dto.js';
+import {
+  MealDateDto,
+  SaveMealDayDto,
+  SaveMealDto,
+  SchoolDto,
+  SchoolSearchDto,
+  UpdateMealDto,
+} from './meal.dto.js';
 import { MealService } from './meal.service.js';
 import { NeisService } from './neis.service.js';
 
@@ -68,6 +75,12 @@ export class MealController {
   @Post()
   create(@CurrentUser() user: SessionUser, @Body() input: SaveMealDto) {
     return this.meals.save(user.id, input);
+  }
+
+  @Put('day')
+  @HttpCode(204)
+  saveDay(@CurrentUser() user: SessionUser, @Body() input: SaveMealDayDto) {
+    return this.meals.saveDay(user.id, input);
   }
 
   @Put(':id')

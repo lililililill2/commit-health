@@ -6,17 +6,22 @@ import {
   mealLabels,
   normalizeFoodName,
   searchFoodTerms,
-  sourceLabels,
   useFoodCatalog,
   useMealHistory,
   type CatalogFood,
   type MealKind,
-  type MealRecord,
 } from '@/entities/meal';
 import { cn } from '@/shared/lib';
 
-import { mealError, type FoodInput, type MealInput } from '../model/meal-actions';
+import {
+  itemEnergy,
+  pendingInput,
+  readKcal,
+  type DraftItem,
+  type DraftSlot,
+} from '../model/meal-draft';
 import { mealAlert, mealButton, mealInput, mealMuted, mealPrimary } from './meal-styles';
+import { SchoolPanel } from './school-panel';
 
 const modes = [
   { id: 'school', label: '급식' },
@@ -24,24 +29,7 @@ const modes = [
   { id: 'manual', label: '직접 입력' },
 ] as const;
 
-type DraftItem = {
-  key: string;
-  name: string;
-  source: keyof typeof sourceLabels;
-  input: FoodInput;
-  portions: number;
-  kcal: string;
-  referenceUrl?: string;
-  legacyEnergy?: number;
-};
-
 const portionChoices = [0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20];
-
-function readKcal(value: string) {
-  if (!value.trim()) return null;
-  const kcal = Number(value);
-  return /^(?:\d+(?:\.\d{1,2})?|\.\d{1,2})$/u.test(value.trim()) && kcal <= 10000 ? kcal : NaN;
-}
 
 function catalogItem(food: CatalogFood): DraftItem {
   return {
@@ -66,57 +54,34 @@ function manualItem(name: string, kcal = ''): DraftItem {
   };
 }
 
-function itemEnergy(item: DraftItem) {
-  if (item.legacyEnergy !== undefined) return item.legacyEnergy;
-  const kcal = readKcal(item.kcal);
-  return kcal == null || Number.isNaN(kcal) ? null : Math.round(kcal * item.portions * 100) / 100;
-}
-
 export function MealEditor({
   userId,
   date,
   kind,
-  record,
+  draft,
   busy,
-  error,
-  onSave,
-  onCancel,
+  onChange,
 }: {
   userId: string;
   date: string;
   kind: MealKind;
-  record?: MealRecord;
+  draft: DraftSlot;
   busy: boolean;
-  error: unknown;
-  onSave: (input: Omit<MealInput, 'requestId'>) => void;
-  onCancel: () => void;
+  onChange: (draft: DraftSlot) => void;
 }) {
-  const [items, setItems] = useState<DraftItem[]>(() =>
-    (record?.items ?? []).map((item) => ({
-      key: item.id,
-      name: item.name,
-      source: item.source,
-      input: { savedId: item.id },
-      portions: item.source === 'SCHOOL' ? 1 : (item.portions ?? 1),
-      kcal: item.source === 'SCHOOL' ? '' : String(item.kcalPerPortion ?? ''),
-      referenceUrl: item.source === 'CATALOG' ? item.servingSourceUrl : undefined,
-      legacyEnergy:
-        item.source === 'CATALOG' && item.portions == null
-          ? (item.energyKcal ?? undefined)
-          : undefined,
-    })),
-  );
+  const { items, school, manualName: name = '', manualKcal = '' } = draft;
   const [query, setQuery] = useState('');
   const [picks, setPicks] = useState<Record<string, string>>({});
-  const [name, setName] = useState('');
-  const [manualKcal, setManualKcal] = useState('');
-  const [mode, setMode] = useState<(typeof modes)[number]['id']>('catalog');
+  const [mode, setMode] = useState<(typeof modes)[number]['id']>(
+    pendingInput(draft) ? 'manual' : 'catalog',
+  );
   const catalog = useFoodCatalog(mode === 'catalog');
   const history = useMealHistory(userId, mode === 'catalog');
   const foods = catalog.data?.foods ?? [];
   const groups = searchFoodTerms(foods, query);
   const usedNames = new Set(items.map((item) => normalizeFoodName(item.name)));
-  const full = items.length >= 40;
+  const availableSlots = 40 - items.length - (school?.menu.length ?? 0);
+  const full = availableSlots <= 0;
   const batch = new Map<string, CatalogFood>();
   for (const group of groups) {
     const selected = picks[group.key];
@@ -128,28 +93,38 @@ export function MealEditor({
     if (candidate && !usedNames.has(normalizeFoodName(candidate.name)))
       batch.set(candidate.id, candidate);
   }
-  const batchCount = Math.min(batch.size, 40 - items.length);
+  const batchCount = Math.min(batch.size, availableSlots);
   const energies = items.map(itemEnergy);
   const calculated = energies.filter((energy) => energy !== null);
   const total = Math.round(calculated.reduce((sum, energy) => sum + energy, 0) * 100) / 100;
   const invalidKcal = items.some((item) => Number.isNaN(readKcal(item.kcal)));
 
-  function add(newItems: DraftItem[]) {
-    setItems((current) => {
-      const names = new Set(current.map((item) => normalizeFoodName(item.name)));
-      const additions = [];
-      for (const item of newItems) {
-        const key = normalizeFoodName(item.name);
-        if (names.has(key)) continue;
-        names.add(key);
-        additions.push(item);
-      }
-      return [...current, ...additions].slice(0, 40);
+  function add(newItems: DraftItem[], clearManual = false) {
+    const names = new Set(usedNames);
+    const additions: DraftItem[] = [];
+    for (const item of newItems) {
+      const key = normalizeFoodName(item.name);
+      if (names.has(key) || additions.length >= availableSlots) continue;
+      names.add(key);
+      additions.push(item);
+    }
+    if (!additions.length) return;
+    onChange({
+      ...draft,
+      skipped: false,
+      items: [...items, ...additions],
+      catalogVersion: additions.some((item) => 'foodId' in item.input)
+        ? catalog.data?.version
+        : draft.catalogVersion,
+      ...(clearManual ? { manualName: '', manualKcal: '' } : {}),
     });
   }
 
   function update(key: string, patch: Partial<Pick<DraftItem, 'portions' | 'kcal'>>) {
-    setItems((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)));
+    onChange({
+      ...draft,
+      items: items.map((item) => (item.key === key ? { ...item, ...patch } : item)),
+    });
   }
 
   return (
@@ -157,14 +132,9 @@ export function MealEditor({
       className="space-y-4 rounded-xl border border-white/20 bg-white/5 p-5 sm:p-6"
       aria-labelledby="meal-editor-title"
     >
-      <div className="flex items-center justify-between gap-2">
-        <h2 id="meal-editor-title" className="text-lg font-semibold">
-          {mealLabels[kind]} {record ? '수정' : '기록'}
-        </h2>
-        <button type="button" className={mealButton} disabled={busy} onClick={onCancel}>
-          닫기
-        </button>
-      </div>
+      <h4 id="meal-editor-title" className="font-medium">
+        {mealLabels[kind]} 음식 담기
+      </h4>
       <fieldset disabled={busy} className="space-y-4">
         <div className="grid grid-cols-3 gap-2" role="group" aria-label="음식 추가 방식">
           {modes.map(({ id, label }) => (
@@ -180,7 +150,31 @@ export function MealEditor({
           ))}
         </div>
 
-        {mode === 'school' && <p className={mealMuted}>학교 급식 연동은 준비 중이에요.</p>}
+        {mode === 'school' &&
+          (kind === 'SNACK' ? (
+            <p className={mealMuted}>급식은 아침·점심·저녁에 기록할 수 있어요.</p>
+          ) : (
+            <SchoolPanel
+              userId={userId}
+              date={date}
+              kind={kind}
+              disabled={busy}
+              recorded={Boolean(school) || items.some((item) => item.source === 'SCHOOL')}
+              availableSlots={availableSlots}
+              onSelect={(selected, menu) =>
+                onChange({
+                  ...draft,
+                  skipped: false,
+                  school: {
+                    officeCode: selected.officeCode,
+                    schoolCode: selected.schoolCode,
+                    menu: menu.items,
+                    mealKcal: menu.mealKcal,
+                  },
+                })
+              }
+            />
+          ))}
 
         {mode === 'catalog' && (
           <div className="space-y-3">
@@ -324,9 +318,7 @@ export function MealEditor({
             onSubmit={(event) => {
               event.preventDefault();
               if (!name.trim() || Number.isNaN(readKcal(manualKcal))) return;
-              add([manualItem(name.trim(), manualKcal.trim())]);
-              setName('');
-              setManualKcal('');
+              add([manualItem(name.trim(), manualKcal.trim())], true);
             }}
           >
             <label className="col-span-2 min-w-0 space-y-1 text-sm sm:col-span-1">
@@ -335,7 +327,9 @@ export function MealEditor({
                 className={mealInput}
                 value={name}
                 maxLength={120}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) =>
+                  onChange({ ...draft, skipped: false, manualName: event.target.value })
+                }
               />
             </label>
             <label className="min-w-0 space-y-1 text-sm">
@@ -348,7 +342,9 @@ export function MealEditor({
                 value={manualKcal}
                 maxLength={8}
                 aria-invalid={Number.isNaN(readKcal(manualKcal))}
-                onChange={(event) => setManualKcal(event.target.value)}
+                onChange={(event) =>
+                  onChange({ ...draft, skipped: false, manualKcal: event.target.value })
+                }
               />
             </label>
             <button
@@ -367,6 +363,21 @@ export function MealEditor({
         )}
 
         <div className="border-t border-white/15 pt-3">
+          {school && (
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm">담은 급식</p>
+                <p className={mealMuted}>{school.menu.join(' · ')}</p>
+              </div>
+              <button
+                type="button"
+                className={mealButton}
+                onClick={() => onChange({ ...draft, school: undefined })}
+              >
+                급식 빼기
+              </button>
+            </div>
+          )}
           <h3 className="mb-2 font-medium">
             담은 음식 <span className={mealMuted}>{items.length}/40</span>
           </h3>
@@ -381,7 +392,7 @@ export function MealEditor({
                       className={cn(mealButton, 'shrink-0 border-0')}
                       aria-label={`${item.name} 빼기`}
                       onClick={() =>
-                        setItems((current) => current.filter(({ key }) => key !== item.key))
+                        onChange({ ...draft, items: items.filter(({ key }) => key !== item.key) })
                       }
                     >
                       빼기
@@ -438,7 +449,7 @@ export function MealEditor({
               ))}
             </ul>
           ) : (
-            <p className={mealMuted}>아직 담은 음식이 없어요.</p>
+            !school && <p className={mealMuted}>아직 담은 음식이 없어요.</p>
           )}
         </div>
 
@@ -447,45 +458,12 @@ export function MealEditor({
             kcal는 0~10,000 사이 숫자로 입력해 주세요.
           </p>
         )}
-        {error != null && (
-          <p role="alert" className={mealAlert}>
-            {mealError(error, '식사를 저장하지 못했어요. 다시 시도해 주세요.')}
-          </p>
-        )}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/15 pt-3">
           <p className="text-sm font-medium" aria-live="polite">
             {calculated.length
               ? `합계 약 ${total} kcal (${calculated.length}/${items.length}개)`
               : '합계 — kcal'}
           </p>
-          {error != null && items.some((item) => 'foodId' in item.input) && (
-            <button className={mealButton} type="button" onClick={() => void catalog.refetch()}>
-              음식 목록 새로고침
-            </button>
-          )}
-          <button
-            type="button"
-            className={mealPrimary}
-            disabled={!items.length || invalidKcal || busy}
-            onClick={() =>
-              onSave({
-                date,
-                kind,
-                catalogVersion: catalog.data?.version,
-                items: items.map((item) => {
-                  if (item.source === 'SCHOOL' || item.legacyEnergy !== undefined)
-                    return item.input;
-                  return {
-                    ...item.input,
-                    portions: item.portions,
-                    ...(item.referenceUrl ? {} : { kcalPerPortion: readKcal(item.kcal) }),
-                  };
-                }),
-              })
-            }
-          >
-            {busy ? '저장 중…' : '식사 저장'}
-          </button>
         </div>
       </fieldset>
     </section>
