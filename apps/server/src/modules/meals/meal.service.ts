@@ -13,8 +13,8 @@ import { catalogById, catalogVersion, servingById } from './meal-catalog.js';
 import {
   mealKinds,
   type MealKind,
+  type MealEntryDto,
   type SaveMealDayDto,
-  type SaveMealDto,
   type SchoolDto,
 } from './meal.dto.js';
 import { NeisService } from './neis.service.js';
@@ -73,8 +73,10 @@ function energyFor(kcalPer100: number, amount: number | null) {
   return amount === null ? null : Math.round(kcalPer100 * amount) / 100;
 }
 
+type MealSnapshotInput = MealEntryDto & { date: string };
+
 function portionSnapshot(
-  input: SaveMealDto['items'][number],
+  input: MealEntryDto['items'][number],
   reference?: { kcal: number; sourceUrl: string },
 ): PortionSnapshot {
   if (input.portions == null) {
@@ -166,7 +168,7 @@ export class MealService {
     const mainMeals = meals.filter(
       ({ kind, items }) => kind !== 'SNACK' && asItems(items).length > 0,
     ).length;
-    return { ...day, mealCount: meals.length, mainMeals };
+    return { ...day, mainMeals };
   }
 
   school(userId: string) {
@@ -196,7 +198,7 @@ export class MealService {
     return school ? { school, meals: await this.neis.menus(school, date) } : { school, meals: [] };
   }
 
-  private async snapshot(userId: string, input: SaveMealDto, current?: MealRecord) {
+  private async snapshot(userId: string, input: MealSnapshotInput, current?: MealRecord) {
     if (input.items.some((item) => item.foodId) && input.catalogVersion !== catalogVersion)
       throw new ConflictException(
         '음식 목록이 바뀌었어요. 목록을 새로 불러온 뒤 다시 저장해 주세요.',
@@ -313,40 +315,6 @@ export class MealService {
     return items;
   }
 
-  async save(userId: string, input: SaveMealDto, edit?: { id: string; revision: number }) {
-    const recordDate = mealDate(input.date);
-    if (input.date > koreanDay(new Date()).recordDate)
-      throw new BadRequestException('미래 날짜에는 식사를 기록할 수 없어요.');
-    const db = this.prisma.client.mealRecord;
-    const slot = { userId, recordDate, kind: input.kind };
-    const current = await db.findFirst({ where: edit ? { ...slot, id: edit.id } : slot });
-    if (current?.requestId === input.requestId) return view(current);
-
-    if (edit && !current) throw new NotFoundException('식사 기록을 찾을 수 없어요.');
-    if (edit && current?.revision !== edit.revision)
-      throw new ConflictException('식사 기록이 변경됐어요. 목록을 새로 확인해 주세요.');
-    if (!edit && current) throw new ConflictException('이 식사는 이미 기록돼 있어요.');
-
-    const items = await this.snapshot(userId, input, current ?? undefined);
-    const data = { items, requestId: input.requestId };
-    if (edit) {
-      const [updated] = await db.updateManyAndReturn({
-        where: { ...slot, id: edit.id, revision: edit.revision },
-        data: { ...data, revision: { increment: 1 } },
-      });
-      if (updated) return view(updated);
-    } else {
-      try {
-        return view(await db.create({ data: { ...slot, ...data } }));
-      } catch (error) {
-        if (!isUniqueConflict(error)) throw error;
-      }
-    }
-    const changed = await db.findFirst({ where: edit ? { ...slot, id: edit.id } : slot });
-    if (changed?.requestId === input.requestId) return view(changed);
-    throw new ConflictException('식사 기록이 변경됐어요. 목록을 새로 확인해 주세요.');
-  }
-
   async saveDay(userId: string, input: SaveMealDayDto): Promise<void> {
     const recordDate = mealDate(input.date);
     if (input.date > koreanDay(new Date()).recordDate)
@@ -389,15 +357,7 @@ export class MealService {
 
       const items = empty
         ? []
-        : await this.snapshot(
-            userId,
-            {
-              ...entry,
-              date: input.date,
-              requestId: input.requestId,
-            },
-            current,
-          );
+        : await this.snapshot(userId, { ...entry, date: input.date }, current);
       writes.push({ kind, current, items, removeSnack });
     }
     if (!writes.length) return;
@@ -424,13 +384,5 @@ export class MealService {
       if (isUniqueConflict(error)) throw conflict();
       throw error;
     }
-  }
-
-  async remove(userId: string, id: string, revision: number) {
-    const db = this.prisma.client.mealRecord;
-    if ((await db.deleteMany({ where: { id, userId, revision } })).count) return;
-    if (await db.findFirst({ where: { id, userId }, select: { id: true } }))
-      throw new ConflictException('식사 기록이 변경됐어요. 목록을 새로 확인해 주세요.');
-    throw new NotFoundException('식사 기록을 찾을 수 없어요.');
   }
 }
