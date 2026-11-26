@@ -35,11 +35,7 @@ export function ResetTodayRecords() {
   function confirmReset() {
     if (!session || reset.isPending) return;
     const recordDate = koreanDate.format(new Date());
-    if (
-      !window.confirm(
-        `${recordDate}의 수면·카페인·식사·컨디션·집중·명상·스트레칭 기록을 삭제할까요?`,
-      )
-    )
+    if (!window.confirm(`${recordDate}의 수면·카페인·식사·컨디션·명상·스트레칭 기록을 삭제할까요?`))
       return;
     reset.mutate({ userId: session.user.id, recordDate });
   }

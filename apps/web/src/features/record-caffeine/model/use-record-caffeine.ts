@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 
 import { caffeineQueryKey } from '@/entities/caffeine';
-import { getSession } from '@/entities/session';
+import { csrfHeaders } from '@/entities/session';
 import { apiClient } from '@/shared/api';
 
 type Drink = { catalogId: string } | { drinkName: string; caffeineMg: number };
@@ -36,9 +36,7 @@ export function useRecordCaffeine(userId: string) {
   return useMutation({
     retry: false,
     mutationFn: async (change: CaffeineChange) => {
-      const session = await getSession();
-      if (!session || session.user.id !== userId) throw new Error('Session changed');
-      const options = { headers: { 'X-CSRF-Token': session.csrfToken } };
+      const options = { headers: await csrfHeaders(userId) };
 
       if (change.kind === 'caffeine-free') {
         const { recordDate, caffeineFree } = change;

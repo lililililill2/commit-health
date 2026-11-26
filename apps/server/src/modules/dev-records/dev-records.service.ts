@@ -1,6 +1,6 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { koreanDay } from '../../common/korean-day.js';
+import { requireToday } from '../../common/korean-day.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
 @Injectable()
@@ -16,12 +16,10 @@ export class DevRecordsService {
     if (!['localhost', '127.0.0.1', '[::1]'].includes(frontend.hostname))
       throw new NotFoundException();
 
-    const { recordDate } = koreanDay(new Date());
-    if (confirmedDate !== recordDate)
-      throw new ConflictException('날짜가 바뀌었어요. 오늘 기록을 다시 확인해 주세요.');
+    const recordDate = requireToday(confirmedDate, new Date());
 
     const db = this.prisma.client;
-    const where = { userId, recordDate: new Date(recordDate) };
+    const where = { userId, recordDate };
     await db.$transaction([
       db.sleepRecord.deleteMany({ where }),
       db.conditionRecord.deleteMany({ where }),

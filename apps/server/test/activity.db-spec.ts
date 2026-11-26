@@ -79,7 +79,13 @@ describe('daily condition and foreground activity records', () => {
   }
   const read = (who: Who) =>
     request(app.getHttpServer()).get('/api/activity/today').set('Cookie', who.cookie);
-  async function start(who: Who, kind: 'focus' | 'meditation' = 'focus') {
+  const stretch = { leftMs: 10_000, rightMs: 10_000 };
+  const complete = (who: Who, id: string, body: object = stretch) =>
+    write(who, `/api/activity/sessions/${id}/stretching-complete`, body);
+  async function start(
+    who: Who,
+    kind: 'shoulder-cross-body' | 'meditation' = 'shoulder-cross-body',
+  ) {
     const result = await write(who, '/api/activity/sessions', { kind }).expect(201);
     return (result.body as { id: string }).id;
   }
@@ -96,7 +102,7 @@ describe('daily condition and foreground activity records', () => {
     await request(app.getHttpServer())
       .post('/api/activity/sessions')
       .set('Cookie', who.cookie)
-      .send({ kind: 'focus' })
+      .send({ kind: 'meditation' })
       .expect(403);
     await read(who).expect('Cache-Control', 'no-store').expect(200);
   });
@@ -163,10 +169,14 @@ describe('daily condition and foreground activity records', () => {
       { recordDate: '2026-11-11', score: 30, userId: who.userId },
       'put',
     ).expect(400);
-    await write(who, '/api/activity/sessions', { kind: 'focus', durationSeconds: 999 }).expect(400);
+    await write(who, '/api/activity/sessions', { kind: 'meditation', durationSeconds: 999 }).expect(
+      400,
+    );
+    await write(who, '/api/activity/sessions', { kind: 'focus' }).expect(400);
     const id = await start(who);
-    for (const action of ['heartbeat', 'complete', 'fail'])
+    for (const action of ['heartbeat', 'fail'])
       await write(other, `/api/activity/sessions/${id}/${action}`).expect(404);
+    await complete(other, id).expect(404);
   });
   it('uses server elapsed time and does not double-count repeated completions', async () => {
     const who = await identity(),
@@ -174,26 +184,29 @@ describe('daily condition and foreground activity records', () => {
     advance(10);
     await write(who, `/api/activity/sessions/${id}/heartbeat`).expect(201);
     advance(5);
-    await write(who, `/api/activity/sessions/${id}/complete`, { durationSeconds: 999 }).expect(201);
-    const result = await write(who, `/api/activity/sessions/${id}/complete`).expect(201);
-    expect(result.body).toMatchObject({ focus: { count: 1, seconds: 15 } });
+    await complete(who, id).expect(400);
+    advance(5);
+    await complete(who, id, { ...stretch, durationSeconds: 999 }).expect(400);
+    await complete(who, id).expect(201);
+    const result = await complete(who, id).expect(201);
+    expect(result.body).toMatchObject({ stretching: { count: 1, seconds: 20 } });
     await write(who, `/api/activity/sessions/${id}/fail`).expect(201);
-    expect((await read(who)).body).toMatchObject({ focus: { count: 1, seconds: 15 } });
+    expect((await read(who)).body).toMatchObject({ stretching: { count: 1, seconds: 20 } });
   });
   it('does not award an interrupted, stale, or previous-day session', async () => {
     const who = await identity();
     let id = await start(who);
     advance(5);
     await write(who, `/api/activity/sessions/${id}/fail`).expect(201);
-    await write(who, `/api/activity/sessions/${id}/complete`).expect(409);
+    await complete(who, id).expect(409);
     id = await start(who);
     advance(15);
     await write(who, `/api/activity/sessions/${id}/heartbeat`).expect(409);
-    await write(who, `/api/activity/sessions/${id}/complete`).expect(409);
+    await complete(who, id).expect(409);
     id = await start(who);
     now = new Date('2026-11-11T15:00:00Z');
-    await write(who, `/api/activity/sessions/${id}/complete`).expect(409);
-    expect((await read(who)).body).toMatchObject({ focus: { count: 0, seconds: 0 } });
+    await complete(who, id).expect(409);
+    expect((await read(who)).body).toMatchObject({ stretching: { count: 0, seconds: 0 } });
   });
   it('requires the three-minute playback report and a live meditation session', async () => {
     const who = await identity(),
@@ -217,7 +230,9 @@ describe('daily condition and foreground activity records', () => {
   it('allows only one concurrent session per user and replaces abandoned sessions only after expiry', async () => {
     const who = await identity();
     const responses = await Promise.all(
-      Array.from({ length: 4 }, () => write(who, '/api/activity/sessions', { kind: 'focus' })),
+      Array.from({ length: 4 }, () =>
+        write(who, '/api/activity/sessions', { kind: 'shoulder-cross-body' }),
+      ),
     );
     expect(responses.filter((r) => r.status === 201)).toHaveLength(1);
     expect(responses.filter((r) => r.status === 409)).toHaveLength(3);
@@ -232,14 +247,13 @@ describe('daily condition and foreground activity records', () => {
   it('concurrent completion and failure leave one stable terminal outcome', async () => {
     const who = await identity(),
       id = await start(who);
-    advance(5);
-    await Promise.all([
-      write(who, `/api/activity/sessions/${id}/complete`),
-      write(who, `/api/activity/sessions/${id}/fail`),
-    ]);
+    advance(10);
+    await write(who, `/api/activity/sessions/${id}/heartbeat`).expect(201);
+    advance(10);
+    await Promise.all([complete(who, id), write(who, `/api/activity/sessions/${id}/fail`)]);
     const stored = await prisma.client.activitySession.findUniqueOrThrow({ where: { id } });
-    const summary = (await read(who)).body as { focus: { count: number; seconds: number } };
-    expect(summary.focus.count).toBe(stored.status === 'COMPLETED' ? 1 : 0);
-    expect(summary.focus.seconds).toBe(stored.status === 'COMPLETED' ? 5 : 0);
+    const summary = (await read(who)).body as { stretching: { count: number; seconds: number } };
+    expect(summary.stretching.count).toBe(stored.status === 'COMPLETED' ? 1 : 0);
+    expect(summary.stretching.seconds).toBe(stored.status === 'COMPLETED' ? 20 : 0);
   });
 });

@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 
-import { getSession } from '@/entities/session';
+import { csrfHeaders } from '@/entities/session';
 import { sleepQueryKey, type SleepDay } from '@/entities/sleep';
 import { apiClient } from '@/shared/api';
 
@@ -18,10 +18,8 @@ export function useRecordSleep(userId: string | undefined) {
   const queryKey = sleepQueryKey(userId);
   return useMutation({
     mutationFn: async (input: SleepInput) => {
-      const session = await getSession();
-      if (!session || session.user.id !== userId) throw new Error('Session changed');
       const { data } = await apiClient.post<SleepDay>('sleep', input, {
-        headers: { 'X-CSRF-Token': session.csrfToken },
+        headers: await csrfHeaders(userId),
       });
       return data;
     },

@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 
 import { mealsKey, type MealKind, type School } from '@/entities/meal';
-import { getSession } from '@/entities/session';
+import { csrfHeaders } from '@/entities/session';
 import { apiClient } from '@/shared/api';
 
 export type SchoolRef = Pick<School, 'officeCode' | 'schoolCode'>;
@@ -26,18 +26,12 @@ export type MealDayInput = {
   meals: DayMealInput[];
 };
 
-async function csrf(userId: string) {
-  const session = await getSession();
-  if (!session || session.user.id !== userId) throw new Error('Session changed');
-  return { 'X-CSRF-Token': session.csrfToken };
-}
-
 export function useSaveMealDay(userId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     retry: false,
     mutationFn: async (input: MealDayInput) => {
-      const headers = await csrf(userId);
+      const headers = await csrfHeaders(userId);
       await apiClient.put('meals/day', input, { headers, timeout: 15_000 });
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: mealsKey(userId) }),
@@ -49,7 +43,7 @@ export function useSchoolChange(userId: string) {
   return useMutation({
     retry: false,
     mutationFn: async (school: SchoolRef | null) => {
-      const headers = await csrf(userId);
+      const headers = await csrfHeaders(userId);
       if (school) return (await apiClient.put<School>('meals/school', school, { headers })).data;
       await apiClient.delete('meals/school', { headers });
       return null;

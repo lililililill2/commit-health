@@ -9,9 +9,11 @@ import {
   ValidateIf,
 } from 'class-validator';
 
+import { RECORD_DATE_PATTERN } from '../../common/korean-day.js';
+
 export class SaveCaffeineDto {
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @Matches(RECORD_DATE_PATTERN)
   recordDate!: string;
 
   @ValidateIf((_: SaveCaffeineDto, value: unknown) => value !== undefined)
@@ -38,7 +40,7 @@ export class SaveCaffeineDto {
 
 export class SetCaffeineFreeDto {
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @Matches(RECORD_DATE_PATTERN)
   recordDate!: string;
 
   @IsBoolean()

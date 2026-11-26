@@ -32,11 +32,6 @@ export class ActivityController {
     return this.activity.heartbeat(user.id, id);
   }
 
-  @Post('sessions/:id/complete')
-  complete(@CurrentUser() user: SessionUser, @Param('id', ParseUUIDPipe) id: string) {
-    return this.activity.complete(user.id, id);
-  }
-
   @Post('sessions/:id/stretching-complete')
   completeStretch(
     @CurrentUser() user: SessionUser,

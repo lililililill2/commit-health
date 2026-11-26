@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
-import { koreanDay } from '../../common/korean-day.js';
+import { koreanDay, requireToday } from '../../common/korean-day.js';
 import type { ActivityKind, ActivitySession } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ActivityClock } from './activity-clock.js';
@@ -22,7 +22,6 @@ import {
 export const ACTIVITY_TIMEOUT_MS = 15_000;
 const stretchSeconds = (2 * STRETCH_DIRECTION_MS) / 1_000;
 const activityKinds = {
-  focus: 'FOCUS',
   meditation: 'MEDITATION',
   'shoulder-cross-body': 'SHOULDER_CROSS_BODY',
 } as const satisfies Record<StartActivityDto['kind'], ActivityKind>;
@@ -87,7 +86,6 @@ export class ActivityService {
       condition: condition
         ? { score: condition.score, updatedAt: condition.updatedAt.toISOString() }
         : null,
-      focus: total('FOCUS'),
       meditation: total('MEDITATION'),
       stretching: total('SHOULDER_CROSS_BODY'),
       activeSession: active ? sessionView(active) : null,
@@ -95,14 +93,14 @@ export class ActivityService {
   }
 
   async saveCondition(userId: string, input: SaveConditionDto) {
-    const day = koreanDay(this.clock.now());
-    if (input.recordDate !== day.recordDate)
-      throw new ConflictException(
-        '이전 날짜의 컨디션은 수정할 수 없어요. 오늘 날짜를 확인해 주세요.',
-      );
+    const recordDate = requireToday(
+      input.recordDate,
+      this.clock.now(),
+      '이전 날짜의 컨디션은 수정할 수 없어요. 오늘 날짜를 확인해 주세요.',
+    );
     await this.prisma.client.conditionRecord.upsert({
-      where: { userId_recordDate: { userId, recordDate: new Date(day.recordDate) } },
-      create: { userId, recordDate: new Date(day.recordDate), score: input.score },
+      where: { userId_recordDate: { userId, recordDate } },
+      create: { userId, recordDate, score: input.score },
       update: { score: input.score },
     });
     return this.today(userId);
@@ -174,13 +172,13 @@ export class ActivityService {
     return { status: 'running' };
   }
 
-  async complete(userId: string, id: string, completion?: Completion) {
+  async complete(userId: string, id: string, completion: Completion) {
     const { session, now } = await this.live(userId, id);
-    if (session.kind !== activityKinds[completion?.kind ?? 'focus']) {
+    if (session.kind !== activityKinds[completion.kind]) {
       throw new BadRequestException('측정 종류에 맞는 완료 요청이 필요해요.');
     }
     if (
-      completion?.kind === 'shoulder-cross-body' &&
+      completion.kind === 'shoulder-cross-body' &&
       (completion.input.leftMs !== STRETCH_DIRECTION_MS ||
         completion.input.rightMs !== STRETCH_DIRECTION_MS)
     ) {
@@ -190,9 +188,8 @@ export class ActivityService {
     if (session.status !== 'RUNNING')
       throw new ConflictException('실패한 측정은 완료할 수 없어요.');
     const seconds = Math.floor((now.getTime() - session.startedAt.getTime()) / 1_000);
-    let requiredSeconds = 1;
-    if (completion?.kind === 'shoulder-cross-body') requiredSeconds = stretchSeconds;
-    if (completion?.kind === 'meditation') {
+    let requiredSeconds = stretchSeconds;
+    if (completion.kind === 'meditation') {
       const { playedSeconds } = completion.input;
       if (
         !Number.isInteger(playedSeconds) ||
@@ -215,7 +212,7 @@ export class ActivityService {
       data: {
         status: 'COMPLETED',
         endedAt: now,
-        durationSeconds: session.kind === 'FOCUS' ? seconds : requiredSeconds,
+        durationSeconds: requiredSeconds,
       },
     });
     if (changed.count !== 1 && (await this.owned(userId, id)).status !== 'COMPLETED')

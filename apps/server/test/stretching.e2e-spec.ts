@@ -128,6 +128,11 @@ describe('Guided activity completion', () => {
     );
   });
 
+  it('rejects the retired focus activity', async () => {
+    await write(client().post('/api/activity/sessions')).send({ kind: 'focus' }).expect(400);
+    expect(sessions.create).not.toHaveBeenCalled();
+  });
+
   it('requires a valid session, CSRF, and ownership', async () => {
     await client().post(path).send(good).expect(401);
     await authenticate(client().post(path)).send(good).expect(403);
@@ -140,7 +145,7 @@ describe('Guided activity completion', () => {
     await write(client().post(path)).send({ leftMs: 10_000 }).expect(400);
     await write(client().post(`/api/activity/sessions/${id}/complete`))
       .send({})
-      .expect(400);
+      .expect(404);
     now = new Date(start + 19_999);
     await write(client().post(path)).send(good).expect(400);
     kind = 'MEDITATION';
@@ -191,7 +196,7 @@ describe('Guided activity completion', () => {
       await write(client().post(meditationPath), 'b').send(evidence).expect(404);
       await write(client().post(`${sessionPath}/complete`))
         .send({})
-        .expect(400);
+        .expect(404);
       expect(completed).toBe(false);
     });
 

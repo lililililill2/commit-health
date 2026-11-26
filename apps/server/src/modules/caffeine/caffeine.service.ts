@@ -5,18 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { koreanDay } from '../../common/korean-day.js';
+import { koreanDay, requireToday } from '../../common/korean-day.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { caffeineCatalog } from './caffeine-catalog.js';
 import type { SaveCaffeineDto, SetCaffeineFreeDto } from './caffeine.dto.js';
-
-function requireToday(recordDate: string, now: Date) {
-  if (recordDate !== koreanDay(now).recordDate) {
-    throw new ConflictException('날짜가 바뀌었어요. 오늘 기록을 다시 확인해 주세요.');
-  }
-  return new Date(recordDate);
-}
 
 @Injectable()
 export class CaffeineService {
