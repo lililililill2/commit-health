@@ -159,24 +159,14 @@ export class MealService {
   async todayProgress(userId: string) {
     const day = koreanDay(new Date());
     const where = { userId, recordDate: mealDate(day.recordDate) };
-    const db = this.prisma.client;
-    const [meals, sleep, condition, activities, caffeine] = await Promise.all([
-      db.mealRecord.findMany({ where, select: { kind: true, items: true } }),
-      db.sleepRecord.findFirst({ where, select: { id: true } }),
-      db.conditionRecord.findFirst({ where, select: { id: true } }),
-      db.activitySession.groupBy({ by: ['kind'], where: { ...where, status: 'COMPLETED' } }),
-      db.caffeineRecord.findFirst({ where, select: { id: true } }),
-    ]);
+    const meals = await this.prisma.client.mealRecord.findMany({
+      where,
+      select: { kind: true, items: true },
+    });
     const mainMeals = meals.filter(
       ({ kind, items }) => kind !== 'SNACK' && asItems(items).length > 0,
     ).length;
-    return {
-      ...day,
-      mealCount: meals.length,
-      mainMeals,
-      dailyRecordCount:
-        [mainMeals > 0, sleep, condition, caffeine].filter(Boolean).length + activities.length,
-    };
+    return { ...day, mealCount: meals.length, mainMeals };
   }
 
   school(userId: string) {

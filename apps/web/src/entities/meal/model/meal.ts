@@ -67,7 +67,6 @@ interface TodayProgress {
   dayEndsAt: string;
   mealCount: number;
   mainMeals: number;
-  dailyRecordCount: number;
 }
 
 export const mealsKey = (userId: string | undefined) => ['meals', userId] as const;
