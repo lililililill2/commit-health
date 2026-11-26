@@ -68,7 +68,7 @@ This policy is separate from investigating concurrent login starts or DB latency
 
 ## Database and extension points
 
-[schema.prisma](../apps/server/prisma/schema.prisma) defines `User`, `Session`, `OAuthAttempt`, and user-owned sleep, caffeine, condition, and activity records.
+[schema.prisma](../apps/server/prisma/schema.prisma) defines `User`, `Session`, `OAuthAttempt`, and user-owned sleep, caffeine, caffeine-free day, condition, and activity records.
 User stores Google sub, an internal ID, and timestamps. Migration files describe the schema changes for each feature.
 
 [ActivityService](../apps/server/src/modules/activity/activity.service.ts) shares `ActivitySession` across focus, meditation, and shoulder stretching. Stretching checks both client-reported durations and the session lifetime. [StretchCamera](../apps/web/src/features/record-activity/model/stretch-camera.ts) runs pose analysis in the browser and releases the webcam when the user leaves or completes the exercise.

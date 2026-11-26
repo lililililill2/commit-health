@@ -19,7 +19,7 @@ export function HealthCommitPage({ categories }: { categories: readonly CommitCa
   const meals = useTodayMealProgress(session.data?.user.id);
   const completed: Record<string, boolean> = {
     sleep: Boolean(sleep.data?.record),
-    caffeine: Boolean(caffeine.data?.records.length),
+    caffeine: Boolean(caffeine.data?.records.length || caffeine.data?.caffeineFree),
     meals: Boolean(meals.data?.mainMeals),
     meditation: Boolean(activity.data?.meditation.count),
     stretching: Boolean(activity.data?.stretching?.count),

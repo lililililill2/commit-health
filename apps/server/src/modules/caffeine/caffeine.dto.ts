@@ -1,4 +1,13 @@
-import { IsNumber, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import {
+  IsBoolean,
+  IsNumber,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  ValidateIf,
+} from 'class-validator';
 
 export class SaveCaffeineDto {
   @IsString()
@@ -25,4 +34,13 @@ export class SaveCaffeineDto {
   @Min(0)
   @Max(9999.99)
   caffeineMg?: number;
+}
+
+export class SetCaffeineFreeDto {
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  recordDate!: string;
+
+  @IsBoolean()
+  caffeineFree!: boolean;
 }

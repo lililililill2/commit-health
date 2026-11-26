@@ -111,6 +111,12 @@ function CaffeineEditor({ day, userId }: { day: CaffeineDay; userId: string }) {
     );
   }
 
+  function setCaffeineFree(caffeineFree: boolean) {
+    change.mutate({ kind: 'caffeine-free', recordDate: day.recordDate, caffeineFree });
+  }
+
+  const freeChange = change.variables?.kind === 'caffeine-free';
+
   function remove(record: CaffeineRecord) {
     if (!window.confirm(`‘${record.drinkName}’ 기록을 삭제할까요?`)) return;
     change.mutate(
@@ -133,6 +139,42 @@ function CaffeineEditor({ day, userId }: { day: CaffeineDay; userId: string }) {
           {formatCaffeineMg(day.totalMg)}
         </p>
         <p className="mt-2 text-sm text-white/60">{day.recordDate} · 한국 시간</p>
+        {day.caffeineFree ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/15 pt-4">
+            <p className="text-sm">
+              오늘은 카페인을 마시지 않았어요.
+              <span className="mt-1 block text-xs text-white/60">
+                음료를 기록하면 이 표시는 사라져요.
+              </span>
+            </p>
+            <button
+              type="button"
+              disabled={change.isPending}
+              className={button}
+              onClick={() => setCaffeineFree(false)}
+            >
+              취소
+            </button>
+          </div>
+        ) : (
+          !day.records.length && (
+            <div className="mt-4 border-t border-white/15 pt-4">
+              <button
+                type="button"
+                disabled={change.isPending}
+                className={button}
+                onClick={() => setCaffeineFree(true)}
+              >
+                {change.isPending && freeChange ? '저장 중…' : '오늘은 안 마셨어요'}
+              </button>
+            </div>
+          )
+        )}
+        {freeChange && change.isError && (
+          <p role="alert" className="mt-3 text-sm text-red-300">
+            {caffeineSaveError(change.error)}
+          </p>
+        )}
       </section>
 
       <form onSubmit={submit} className={panel}>
@@ -320,17 +362,17 @@ function CaffeineEditor({ day, userId }: { day: CaffeineDay; userId: string }) {
             )}
           </div>
         </fieldset>
-        {change.isError && (
+        {!freeChange && change.isError && (
           <p role="alert" className="mt-3 text-sm text-red-300">
             {caffeineSaveError(change.error)}
           </p>
         )}
-        {change.isSuccess && (
+        {!freeChange && change.isSuccess && (
           <p role="status" className="mt-3 text-sm text-emerald-300">
             {change.variables?.kind === 'remove'
               ? '음료 기록을 삭제했어요.'
-              : (change.variables?.quantity ?? 1) > 1
-                ? `음료 ${change.variables?.quantity}개를 기록했어요.`
+              : change.variables?.kind === 'save' && change.variables.quantity > 1
+                ? `음료 ${change.variables.quantity}개를 기록했어요.`
                 : '음료 기록을 저장했어요.'}
           </p>
         )}

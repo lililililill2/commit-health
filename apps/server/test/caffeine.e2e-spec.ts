@@ -30,7 +30,16 @@ const records = {
   deleteMany: jest
     .fn<(args: unknown) => Promise<{ count: number }>>()
     .mockResolvedValue({ count: 1 }),
+  count: jest.fn<(args: unknown) => Promise<number>>().mockResolvedValue(0),
 };
+const freeDays = {
+  findUnique: jest.fn<(args: unknown) => Promise<unknown>>().mockResolvedValue(null),
+  upsert: jest.fn<(args: unknown) => Promise<unknown>>().mockResolvedValue({}),
+  deleteMany: jest
+    .fn<(args: unknown) => Promise<{ count: number }>>()
+    .mockResolvedValue({ count: 1 }),
+};
+const transaction = jest.fn((writes: Promise<unknown>[]) => Promise.all(writes));
 
 describe('Caffeine records', () => {
   let app: INestApplication<Server>;
@@ -44,7 +53,9 @@ describe('Caffeine records', () => {
       .overrideProvider(ConfigService)
       .useValue(new ConfigService({ NODE_ENV: 'test', CORS_ORIGIN: origin, FRONTEND_URL: origin }))
       .overrideProvider(PrismaService)
-      .useValue({ client: { caffeineRecord: records } })
+      .useValue({
+        client: { caffeineRecord: records, caffeineFreeDay: freeDays, $transaction: transaction },
+      })
       .overrideProvider(AuthService)
       .useValue({
         resolveSession: (token?: string) =>
@@ -158,5 +169,57 @@ describe('Caffeine records', () => {
     const where = { id: recordId, userId, recordDate: new Date(date) };
     expect(records.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where }));
     expect(records.deleteMany).toHaveBeenCalledWith({ where });
+  });
+
+  it('marks a caffeine-free day only when no drink is recorded today', async () => {
+    const date = today();
+    const recordDate = new Date(date);
+    const endpoint = `${url}/today/caffeine-free`;
+    await session(client().put(endpoint))
+      .send({ recordDate: date, caffeineFree: true })
+      .expect(403);
+    await write(client().put(endpoint))
+      .send({ recordDate: '2000-01-01', caffeineFree: true })
+      .expect(409);
+    await write(client().put(endpoint)).send({ recordDate: date }).expect(400);
+
+    records.count.mockResolvedValueOnce(1);
+    await write(client().put(endpoint)).send({ recordDate: date, caffeineFree: true }).expect(409);
+    expect(freeDays.upsert).not.toHaveBeenCalled();
+
+    await write(client().put(endpoint)).send({ recordDate: date, caffeineFree: true }).expect(204);
+    expect(freeDays.upsert).toHaveBeenCalledWith({
+      where: { userId_recordDate: { userId, recordDate } },
+      create: { userId, recordDate },
+      update: {},
+    });
+
+    freeDays.findUnique.mockResolvedValueOnce({ userId });
+    const marked = await session(client().get(`${url}/today`)).expect(200);
+    expect(marked.body).toMatchObject({ totalMg: 0, records: [], caffeineFree: true });
+
+    await write(client().put(endpoint)).send({ recordDate: date, caffeineFree: false }).expect(204);
+    expect(freeDays.deleteMany).toHaveBeenCalledWith({ where: { userId, recordDate } });
+  });
+
+  it('clears the caffeine-free mark when a drink is added', async () => {
+    const date = today();
+    await write(client().post(url)).send({ recordDate: date, catalogId }).expect(204);
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(freeDays.deleteMany).toHaveBeenCalledWith({
+      where: { userId, recordDate: new Date(date) },
+    });
+
+    freeDays.findUnique.mockResolvedValueOnce({ userId });
+    records.findMany.mockResolvedValueOnce([
+      {
+        id: recordId,
+        drinkName: '핫식스 제로',
+        caffeineMg: new Prisma.Decimal(70),
+        consumedAt: new Date(),
+      },
+    ]);
+    const response = await session(client().get(`${url}/today`)).expect(200);
+    expect(response.body).toMatchObject({ totalMg: 70, caffeineFree: false });
   });
 });

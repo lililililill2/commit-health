@@ -27,6 +27,7 @@ export class DevRecordsService {
       db.conditionRecord.deleteMany({ where }),
       db.activitySession.deleteMany({ where }),
       db.caffeineRecord.deleteMany({ where }),
+      db.caffeineFreeDay.deleteMany({ where }),
       db.mealRecord.deleteMany({ where }),
     ]);
   }

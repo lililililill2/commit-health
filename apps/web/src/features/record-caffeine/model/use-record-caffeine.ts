@@ -16,7 +16,8 @@ type CaffeineChange =
       quantity: number;
       input: Drink & { recordDate: string; consumedTime?: string };
     }
-  | { kind: 'remove'; id: string; recordDate: string };
+  | { kind: 'remove'; id: string; recordDate: string }
+  | { kind: 'caffeine-free'; recordDate: string; caffeineFree: boolean };
 
 export class CaffeineQuantitySaveError extends Error {
   constructor(
@@ -39,7 +40,10 @@ export function useRecordCaffeine(userId: string) {
       if (!session || session.user.id !== userId) throw new Error('Session changed');
       const options = { headers: { 'X-CSRF-Token': session.csrfToken } };
 
-      if (change.kind === 'remove') {
+      if (change.kind === 'caffeine-free') {
+        const { recordDate, caffeineFree } = change;
+        await apiClient.put('caffeine/today/caffeine-free', { recordDate, caffeineFree }, options);
+      } else if (change.kind === 'remove') {
         await apiClient.delete(`caffeine/${change.id}/${change.recordDate}`, options);
       } else if (change.id) {
         await apiClient.put(`caffeine/${change.id}`, change.input, options);

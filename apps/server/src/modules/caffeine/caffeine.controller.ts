@@ -12,7 +12,7 @@ import {
 
 import { CurrentUser, type SessionUser } from '../../auth/auth-context.js';
 import { caffeineCatalog } from './caffeine-catalog.js';
-import { SaveCaffeineDto } from './caffeine.dto.js';
+import { SaveCaffeineDto, SetCaffeineFreeDto } from './caffeine.dto.js';
 import { CaffeineService } from './caffeine.service.js';
 
 @Controller('caffeine')
@@ -27,6 +27,12 @@ export class CaffeineController {
   @Get('today')
   today(@CurrentUser() user: SessionUser) {
     return this.caffeine.today(user.id);
+  }
+
+  @Put('today/caffeine-free')
+  @HttpCode(204)
+  setCaffeineFree(@CurrentUser() user: SessionUser, @Body() input: SetCaffeineFreeDto) {
+    return this.caffeine.setCaffeineFree(user.id, input);
   }
 
   @Post()
