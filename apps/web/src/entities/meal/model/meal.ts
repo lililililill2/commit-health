@@ -80,7 +80,12 @@ export function useTodayMealProgress(userId: string | undefined) {
       (await apiClient.get<TodayProgress>('meals/today-progress', { signal })).data,
     staleTime: 0,
     retry: false,
-    refetchInterval: ({ state }) => refetchUntilDayEnds(state.data?.dayEndsAt, Infinity),
+    refetchInterval: ({ state }) => {
+      const dayEndsAt = state.data?.dayEndsAt;
+      // Keep the slower retry after midnight so a failing server is not polled every second.
+      if (dayEndsAt && Date.parse(dayEndsAt) <= Date.now()) return 60_000;
+      return refetchUntilDayEnds(dayEndsAt, Infinity);
+    },
   });
 }
 
