@@ -9,7 +9,7 @@ import { koreanDay } from '../../common/korean-day.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { caffeineCatalog } from './caffeine-catalog.js';
-import type { SaveCaffeineDto } from './caffeine.dto.js';
+import type { SaveCaffeineDto, SetCaffeineFreeDto } from './caffeine.dto.js';
 
 function requireToday(recordDate: string, now: Date) {
   if (recordDate !== koreanDay(now).recordDate) {
@@ -24,18 +24,25 @@ export class CaffeineService {
 
   async today(userId: string) {
     const day = koreanDay(new Date());
-    const records = await this.prisma.client.caffeineRecord.findMany({
-      where: { userId, recordDate: new Date(day.recordDate) },
-      orderBy: [{ consumedAt: 'desc' }, { id: 'desc' }],
-      select: {
-        id: true,
-        catalogId: true,
-        drinkName: true,
-        servingLabel: true,
-        caffeineMg: true,
-        consumedAt: true,
-      },
-    });
+    const where = { userId, recordDate: new Date(day.recordDate) };
+    const [records, caffeineFree] = await Promise.all([
+      this.prisma.client.caffeineRecord.findMany({
+        where,
+        orderBy: [{ consumedAt: 'desc' }, { id: 'desc' }],
+        select: {
+          id: true,
+          catalogId: true,
+          drinkName: true,
+          servingLabel: true,
+          caffeineMg: true,
+          consumedAt: true,
+        },
+      }),
+      this.prisma.client.caffeineFreeDay.findUnique({
+        where: { userId_recordDate: where },
+        select: { userId: true },
+      }),
+    ]);
     const total = records.reduce(
       (sum, record) => sum.plus(record.caffeineMg),
       new Prisma.Decimal(0),
@@ -43,6 +50,7 @@ export class CaffeineService {
     return {
       ...day,
       totalMg: total.toNumber(),
+      caffeineFree: Boolean(caffeineFree) && records.length === 0,
       records: records.map((record) => ({
         ...record,
         caffeineMg: record.caffeineMg.toNumber(),
@@ -89,10 +97,14 @@ export class CaffeineService {
       drink = { catalogId: null, servingLabel: null, drinkName, caffeineMg };
     }
 
-    const records = this.prisma.client.caffeineRecord;
+    const db = this.prisma.client;
+    const records = db.caffeineRecord;
     const data = { ...drink, consumedAt };
     if (id === undefined) {
-      await records.create({ data: { ...data, userId, recordDate } });
+      await db.$transaction([
+        records.create({ data: { ...data, userId, recordDate } }),
+        db.caffeineFreeDay.deleteMany({ where: { userId, recordDate } }),
+      ]);
       return;
     }
     const { count } = await records.updateMany({ where: { id, userId, recordDate }, data });
@@ -105,5 +117,21 @@ export class CaffeineService {
       where: { id, userId, recordDate },
     });
     if (!count) throw new NotFoundException('오늘 기록에서 이 음료를 찾을 수 없어요.');
+  }
+
+  async setCaffeineFree(userId: string, input: SetCaffeineFreeDto): Promise<void> {
+    const recordDate = requireToday(input.recordDate, new Date());
+    const db = this.prisma.client;
+    if (!input.caffeineFree) {
+      await db.caffeineFreeDay.deleteMany({ where: { userId, recordDate } });
+      return;
+    }
+    const drinks = await db.caffeineRecord.count({ where: { userId, recordDate } });
+    if (drinks) throw new ConflictException('오늘 마신 음료 기록이 있어요. 기록을 확인해 주세요.');
+    await db.caffeineFreeDay.upsert({
+      where: { userId_recordDate: { userId, recordDate } },
+      create: { userId, recordDate },
+      update: {},
+    });
   }
 }

@@ -18,6 +18,7 @@ model User {
   conditionRecords ConditionRecord[]
   activitySessions ActivitySession[]
   caffeineRecords  CaffeineRecord[]
+  caffeineFreeDays CaffeineFreeDay[]
   mealRecords      MealRecord[]
   school           UserSchool?
 }
@@ -101,6 +102,15 @@ model CaffeineRecord {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, recordDate, consumedAt])
+}
+
+model CaffeineFreeDay {
+  userId     String   @db.Uuid
+  recordDate DateTime @db.Date
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, recordDate])
 }
 
 model ConditionRecord {

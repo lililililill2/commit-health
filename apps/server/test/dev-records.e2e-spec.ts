@@ -25,6 +25,7 @@ const deleteRecords = {
   conditionRecord: { deleteMany: mockDelete() },
   activitySession: { deleteMany: mockDelete() },
   caffeineRecord: { deleteMany: mockDelete() },
+  caffeineFreeDay: { deleteMany: mockDelete() },
   mealRecord: { deleteMany: mockDelete() },
 };
 const transaction = jest.fn((writes: Promise<unknown>[]) => Promise.all(writes));

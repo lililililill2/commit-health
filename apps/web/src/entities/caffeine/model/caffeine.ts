@@ -27,6 +27,7 @@ export interface CaffeineDay {
   dayEndsAt: string;
   totalMg: number;
   records: CaffeineRecord[];
+  caffeineFree: boolean;
 }
 
 export const caffeineQueryKey = (userId: string | undefined) =>
