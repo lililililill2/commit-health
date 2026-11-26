@@ -1,8 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-import { useTodayMealProgress } from '@/entities/meal';
-import { useSession } from '@/entities/session';
 import { cn } from '@/shared/lib';
 
 function Icon({ children, className }: { children: ReactNode; className?: string }) {
@@ -65,25 +63,7 @@ const menus = [
   },
 ];
 
-const quests = [
-  {
-    id: 'daily-visit',
-    label: '오늘 출석하기',
-  },
-  {
-    id: 'daily-record',
-    label: '오늘 기록 항목 3개 저장',
-  },
-  {
-    id: 'view-record',
-    label: '내 기록 1개 열어보기',
-  },
-];
-
 export function DormHud() {
-  const session = useSession();
-  const { data: progress } = useTodayMealProgress(session.data?.user.id);
-  const count = progress ? Math.min(progress.dailyRecordCount, 3) : undefined;
   return (
     <div className="relative min-h-0 min-w-0">
       <nav
@@ -113,54 +93,6 @@ export function DormHud() {
           ))}
         </ul>
       </nav>
-      <aside
-        className={cn(
-          'absolute top-[clamp(28px,5vh,64px)] right-[clamp(20px,3.2vw,64px)] w-[clamp(144px,12vw,208px)]',
-          '[text-shadow:0_2px_8px_rgb(0_0_0/45%)]',
-          'mobile:top-6 mobile:right-4 mobile:w-[136px] short-screen:top-[18px]',
-        )}
-        aria-labelledby="daily-quests-heading"
-      >
-        <section>
-          <h2
-            id="daily-quests-heading"
-            className="m-0 text-[18px] font-medium tracking-[-0.03em] mobile:text-base"
-          >
-            일일 퀘스트
-          </h2>
-          <ul
-            className={cn(
-              'm-0 mt-[26px] flex list-none flex-col gap-[23px] p-0',
-              'mobile:mt-[22px] mobile:gap-[18px] short-screen:mt-4 short-screen:gap-3',
-            )}
-          >
-            {quests.map((quest) => (
-              <li
-                key={quest.id}
-                className="flex items-start gap-2.5 text-sm leading-[1.65] break-keep text-white/92 mobile:gap-[7px] mobile:text-xs"
-              >
-                <Icon
-                  className={cn(
-                    'mt-0.5 size-[19px] shrink-0 opacity-80 mobile:size-4',
-                    quest.id === 'daily-record' && count === 3 && 'text-emerald-300',
-                  )}
-                >
-                  <circle cx="12" cy="12" r="8" />
-                  {quest.id === 'daily-record' && count === 3 && <path d="m8.5 12 2.5 2.5 4.5-5" />}
-                </Icon>
-                <span>
-                  {quest.label}
-                  {quest.id === 'daily-record' && count !== undefined && (
-                    <span className="ml-1 whitespace-nowrap">
-                      {count === 3 ? '완료' : `${count}/3`}
-                    </span>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </aside>
     </div>
   );
 }

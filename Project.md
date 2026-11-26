@@ -54,7 +54,7 @@ apps/web/
 └─ src/
    ├─ app/        providers(QueryProvider), styles/globals.css
    ├─ pages/      home, auth-error, menu-placeholder, three-d-preview
-   ├─ widgets/    dorm-stage — 3D 장면 + HUD(메인 메뉴, 일일 퀘스트), 실시간 시계
+   ├─ widgets/    dorm-stage — 3D 장면 + HUD(메인 메뉴), 실시간 시계
    ├─ features/   auth — Google 로그인 버튼, 로그아웃, RequireSession
    │              dorm-viewer — R3F 캔버스, 하늘·구름·캠퍼스 배경, 카메라 설정
    ├─ entities/   session — useSession() (GET /auth/me, 401이면 null)
@@ -64,7 +64,7 @@ apps/web/
 화면 흐름
 
 - `/` 비로그인: 로고 + Google 로그인 버튼
-- `/` 로그인: `DormStage` — 회전 가능한 기숙사 3D 모델, 좌측 메뉴(커밋하기·기록·업적·설정), 우측 일일 퀘스트(현재 정적 데이터)
+- `/` 로그인: `DormStage` — 회전 가능한 기숙사 3D 모델, 좌측 메뉴(커밋하기·기록·업적·설정)
 - 메뉴 페이지는 `MenuPlaceholderPage`로 제목과 "메인으로" 링크만 표시
 
 ### apps/server — NestJS
@@ -293,13 +293,13 @@ apps/web/
 완료
 
 - Google OIDC 로그인, DB 세션, CSRF 보호, 로그아웃
-- 로그인 화면, 기숙사 3D 메인 대시보드(메뉴·일일 퀘스트 UI)
+- 로그인 화면, 기숙사 3D 메인 대시보드(메뉴)
 - CI, Vercel 배포 구성
 
 미구현
 
 - 커밋하기 / 기록 / 업적 / 설정 페이지 실제 기능
-- 건강 기록·캐릭터·퀘스트 데이터 모델과 API (현재 일일 퀘스트는 하드코딩)
+- 캐릭터·퀘스트 데이터 모델과 API (대시보드 일일 퀘스트는 규칙 확정 전까지 제외)
 - 커뮤니티 기능 (스냅샷, 목표 가져오기, 친구, 커밋 경쟁, 채팅)
 - 온프레미스 VM 구성 ([Vercel + VM 분리 배포](docs/hybrid-deployment.md)). 채팅의 WebSocket 전환은 VM 준비 후 진행
 
