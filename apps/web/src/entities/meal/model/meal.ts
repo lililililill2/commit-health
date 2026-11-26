@@ -66,7 +66,6 @@ export interface HistoryFood {
 interface TodayProgress {
   recordDate: string;
   dayEndsAt: string;
-  mealCount: number;
   mainMeals: number;
 }
 

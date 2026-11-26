@@ -1,26 +1,7 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  ParseIntPipe,
-  ParseUUIDPipe,
-  Post,
-  Put,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Put, Query } from '@nestjs/common';
 
 import { CurrentUser, type SessionUser } from '../../auth/auth-context.js';
-import {
-  MealDateDto,
-  SaveMealDayDto,
-  SaveMealDto,
-  SchoolDto,
-  SchoolSearchDto,
-  UpdateMealDto,
-} from './meal.dto.js';
+import { MealDateDto, SaveMealDayDto, SchoolDto, SchoolSearchDto } from './meal.dto.js';
 import { MealService } from './meal.service.js';
 import { NeisService } from './neis.service.js';
 
@@ -72,33 +53,9 @@ export class MealController {
     return this.meals.menus(user.id, date);
   }
 
-  @Post()
-  create(@CurrentUser() user: SessionUser, @Body() input: SaveMealDto) {
-    return this.meals.save(user.id, input);
-  }
-
   @Put('day')
   @HttpCode(204)
   saveDay(@CurrentUser() user: SessionUser, @Body() input: SaveMealDayDto) {
     return this.meals.saveDay(user.id, input);
-  }
-
-  @Put(':id')
-  update(
-    @CurrentUser() user: SessionUser,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() input: UpdateMealDto,
-  ) {
-    return this.meals.save(user.id, input, { id, revision: input.revision });
-  }
-
-  @Delete(':id')
-  @HttpCode(204)
-  remove(
-    @CurrentUser() user: SessionUser,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Query('revision', ParseIntPipe) revision: number,
-  ) {
-    return this.meals.remove(user.id, id, revision);
   }
 }

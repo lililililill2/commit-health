@@ -87,7 +87,7 @@ class MealItemDto {
   name?: string;
 }
 
-class MealEntryDto {
+export class MealEntryDto {
   @IsIn(mealKinds)
   kind!: MealKind;
 
@@ -106,14 +106,6 @@ class MealEntryDto {
   @ValidateNested()
   @Type(() => SchoolMealDto)
   school?: SchoolMealDto;
-}
-
-export class SaveMealDto extends MealEntryDto {
-  @IsUUID('4')
-  requestId!: string;
-
-  @Matches(RECORD_DATE_PATTERN)
-  date!: string;
 }
 
 class MealRevisionDto {
@@ -149,11 +141,4 @@ export class SaveMealDayDto extends MealDateDto {
   @ValidateNested({ each: true })
   @Type(() => DayMealDto)
   meals!: DayMealDto[];
-}
-
-export class UpdateMealDto extends SaveMealDto {
-  @IsInt()
-  @Min(1)
-  @Max(2147483647)
-  revision!: number;
 }
