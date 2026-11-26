@@ -3,10 +3,10 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useSession } from '@/entities/session';
+import { csrfHeaders, useSession } from '@/entities/session';
 import { activityQueryKey, useTodayActivity, type ActivityDay } from '@/entities/activity';
 import { apiClient } from '@/shared/api';
-import { activityError, activityHeaders } from '../model/activity-api';
+import { activityError } from '../model/activity-api';
 
 function ConditionEditor({ day, userId }: { day: ActivityDay; userId: string | undefined }) {
   const [score, setScore] = useState(day.condition?.score ?? 50);
@@ -18,7 +18,7 @@ function ConditionEditor({ day, userId }: { day: ActivityDay; userId: string | u
         await apiClient.put<ActivityDay>(
           'activity/condition',
           { recordDate: day.recordDate, score },
-          { headers: await activityHeaders(userId) },
+          { headers: await csrfHeaders(userId) },
         )
       ).data,
     onSuccess: async (data) => {

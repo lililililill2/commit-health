@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 
 import { Prisma, type SleepRecord } from '../../generated/prisma/client.js';
+import { requireToday } from '../../common/korean-day.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CreateSleepDto } from './create-sleep.dto.js';
 import { SleepClock } from './sleep-clock.js';
@@ -35,8 +36,7 @@ export class SleepService {
   async create(userId: string, input: CreateSleepDto) {
     const now = this.clock.now();
     const day = sleepDay(now);
-    if (input.recordDate !== day.recordDate)
-      throw new ConflictException('날짜가 변경됐어요. 오늘 날짜를 확인하고 다시 기록해 주세요.');
+    requireToday(input.recordDate, now);
     const window = sleepWindow(input.recordDate, input.bedtime, input.wakeTime, now);
     try {
       const record = await this.prisma.client.sleepRecord.create({

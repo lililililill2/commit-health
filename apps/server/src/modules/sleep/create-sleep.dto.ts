@@ -1,8 +1,10 @@
 import { IsString, Matches } from 'class-validator';
 
+import { RECORD_DATE_PATTERN } from '../../common/korean-day.js';
+
 export class CreateSleepDto {
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @Matches(RECORD_DATE_PATTERN)
   recordDate!: string;
 
   @IsString()

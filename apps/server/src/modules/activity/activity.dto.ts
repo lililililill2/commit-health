@@ -1,11 +1,13 @@
 import { Equals, IsIn, IsInt, IsString, Matches, Max, Min } from 'class-validator';
 
+import { RECORD_DATE_PATTERN } from '../../common/korean-day.js';
+
 export const STRETCH_DIRECTION_MS = 10_000;
 export const MEDITATION_SECONDS = 180;
 
 export class StartActivityDto {
-  @IsIn(['focus', 'meditation', 'shoulder-cross-body'])
-  kind!: 'focus' | 'meditation' | 'shoulder-cross-body';
+  @IsIn(['meditation', 'shoulder-cross-body'])
+  kind!: 'meditation' | 'shoulder-cross-body';
 }
 
 export class CompleteStretchDto {
@@ -24,7 +26,7 @@ export class CompleteMeditationDto {
 
 export class SaveConditionDto {
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @Matches(RECORD_DATE_PATTERN)
   recordDate!: string;
 
   @IsInt()

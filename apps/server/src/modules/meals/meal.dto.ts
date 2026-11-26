@@ -18,14 +18,15 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+import { RECORD_DATE_PATTERN } from '../../common/korean-day.js';
+
 export const mealKinds = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'] as const;
 export type MealKind = (typeof mealKinds)[number];
-const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
 export class MealDateDto {
-  @Matches(datePattern)
+  @Matches(RECORD_DATE_PATTERN)
   date!: string;
 }
 
@@ -111,7 +112,7 @@ export class SaveMealDto extends MealEntryDto {
   @IsUUID('4')
   requestId!: string;
 
-  @Matches(datePattern)
+  @Matches(RECORD_DATE_PATTERN)
   date!: string;
 }
 

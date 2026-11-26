@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { apiClient } from '@/shared/api';
+import { refetchUntilDayEnds } from '@/shared/lib';
 
 export interface SleepRecord {
   id: string;
@@ -31,9 +32,6 @@ export function useTodaySleep(userId: string | undefined) {
     },
     staleTime: 0,
     retry: false,
-    refetchInterval: (query) => {
-      const end = query.state.data?.dayEndsAt;
-      return end ? Math.max(1_000, Math.min(60_000, Date.parse(end) - Date.now() + 100)) : false;
-    },
+    refetchInterval: (query) => refetchUntilDayEnds(query.state.data?.dayEndsAt),
   });
 }

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { apiClient } from '@/shared/api';
+import { refetchUntilDayEnds } from '@/shared/lib';
 
 export const mealLabels = {
   BREAKFAST: '아침',
@@ -80,9 +81,10 @@ export function useTodayMealProgress(userId: string | undefined) {
     staleTime: 0,
     retry: false,
     refetchInterval: ({ state }) => {
-      if (!state.data) return false;
-      const remaining = Date.parse(state.data.dayEndsAt) - Date.now();
-      return remaining > 0 ? Math.max(100, remaining + 100) : 60_000;
+      const dayEndsAt = state.data?.dayEndsAt;
+      // Keep the slower retry after midnight so a failing server is not polled every second.
+      if (dayEndsAt && Date.parse(dayEndsAt) <= Date.now()) return 60_000;
+      return refetchUntilDayEnds(dayEndsAt, Infinity);
     },
   });
 }

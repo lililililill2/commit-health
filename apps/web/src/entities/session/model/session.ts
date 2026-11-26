@@ -22,6 +22,13 @@ export async function getSession(signal?: AbortSignal): Promise<Session | null> 
   }
 }
 
+/** Builds the CSRF header for a write, refusing it if the signed-in user changed. */
+export async function csrfHeaders(userId: string | undefined) {
+  const session = await getSession();
+  if (!session || session.user.id !== userId) throw new Error('Session changed');
+  return { 'X-CSRF-Token': session.csrfToken };
+}
+
 export function useSession() {
   return useQuery({
     queryKey: sessionQueryKey,
